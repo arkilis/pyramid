@@ -2,6 +2,7 @@ package com.pyramidframework.sdi.xml;
 
 import java.io.FileOutputStream;
 
+import org.dom4j.Namespace;
 import org.dom4j.io.XMLWriter;
 
 import com.pyramidframework.sdi.OperatorConvter;
@@ -37,6 +38,8 @@ public class XmlInhertance extends StructuredDocumentInheritance {
 	public void setUseNamespace(boolean useNamespace) {
 		this.useNamespace = useNamespace;
 	}
+	
+	protected Namespace defaultNameSpace  = null;
 
 	/**
 	 * 构建默认的转换器，并自动探测是否启用命名空间表示
@@ -48,14 +51,27 @@ public class XmlInhertance extends StructuredDocumentInheritance {
 
 			// 判断是否需要默认命名空间
 			useNamespace = DEFAULT_NAMESPACE_URI.equals(document.namespaces.get(DEFAULT_NAMESPACE_PREFIX));
+			
+			createDefaultNamespace();
 
 			createOperatorConvter();
 		}
-		
-		//注意字符集的问题
-		XmlDocument document = (XmlDocument)super.getTargetDocument(parent, rule);
-		document.getDom4jDocument().setXMLEncoding(((XmlDocument)parent).getDom4jDocument().getXMLEncoding());
+
+		// 注意字符集的问题
+		XmlDocument document = (XmlDocument) super.getTargetDocument(parent, rule);
+		document.getDom4jDocument().setXMLEncoding(((XmlDocument) parent).getDom4jDocument().getXMLEncoding());
 		return document;
+	}
+	
+	/**
+	 * 创建默认使用的命名空间
+	 */
+	protected Namespace createDefaultNamespace() {
+		if (defaultNameSpace == null ){
+			defaultNameSpace =  new Namespace(XmlInhertance.DEFAULT_NAMESPACE_PREFIX,XmlInhertance.DEFAULT_NAMESPACE_URI);
+		}
+		
+		return defaultNameSpace;
 	}
 
 	/**

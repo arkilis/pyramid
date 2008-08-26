@@ -62,7 +62,7 @@ public class XmlConvter implements OperatorConvter {
 	 * @return
 	 * @throws SDIException
 	 */
-	protected NodeOperator parseInternOperator(SDIContext context, XmlNode operatorNode) throws SDIException {
+	public NodeOperator parseInternOperator(SDIContext context, XmlNode operatorNode) throws SDIException {
 
 		Element element = (Element) operatorNode.rootNode;
 
@@ -100,14 +100,14 @@ public class XmlConvter implements OperatorConvter {
 	}
 
 	/**
-	 * 对设置的结果表达式进行解析,TODO: 嵌套解析规则
+	 * 对设置的结果表达式进行解析,
 	 * 
 	 * @param dataNode
 	 * @param type
 	 * @param path
 	 * @return
 	 */
-	protected XmlNode parseInternDataNode(SDIContext context, XmlNode dataNode) throws SDIException {
+	public XmlNode parseInternDataNode(SDIContext context, XmlNode dataNode) throws SDIException {
 
 		List children = dataNode.getChildren();
 		if (children.size() > 0) {
@@ -166,7 +166,7 @@ public class XmlConvter implements OperatorConvter {
 	 * @return
 	 * @throws SDIException
 	 */
-	protected XmlNode parseInternReference(SDIContext context, XmlNode node) throws SDIException {
+	public XmlNode parseInternReference(SDIContext context, XmlNode node) throws SDIException {
 		Element element = (Element) node.rootNode;
 
 		String referType = element.attributeValue(referenceTypeName);
@@ -195,7 +195,9 @@ public class XmlConvter implements OperatorConvter {
 		List list = node.getChildren();
 		int size = list.size();
 		XmlDocument document = null;
-		if (size > 0) {
+		
+		//只有是Element时才能修改
+		if (size > 0 && xmlNode.rootNode instanceof Element) {
 			document = XmlDocument.createXmlDocumentFromNode(xmlNode);
 		} else {
 			return xmlNode;
@@ -214,17 +216,17 @@ public class XmlConvter implements OperatorConvter {
 	}
 
 	protected XmlInhertance inheriInstance = null;
-	private Namespace nameSpace = null;
-	private QName referenceElementName = null;
-	private QName referenceTargetAttributeName = null;
-	protected QName referencePathAttributeName = null;
-	protected QName referencePathAttributeNamespace = null;
-	protected QName referenceTypeName = null;
+	public Namespace nameSpace = null;
+	public QName referenceElementName = null;
+	public QName referenceTargetAttributeName = null;
+	public QName referencePathAttributeName = null;
+	public QName referencePathAttributeNamespace = null;
+	public QName referenceTypeName = null;
 
-	protected QName rootElementName = null;
-	protected QName operatorElementName = null;
-	protected QName operatorTypeAttributeName = null;
-	protected QName operatorTargetPathAttributeName = null;
+	public QName rootElementName = null;
+	public QName operatorElementName = null;
+	public QName operatorTypeAttributeName = null;
+	public QName operatorTargetPathAttributeName = null;
 
 	/**
 	 * 构建一个转换对象
@@ -254,7 +256,7 @@ public class XmlConvter implements OperatorConvter {
 	 */
 	protected Namespace getNameSpace() {
 		if (inheriInstance.useNamespace && nameSpace == null) {
-			nameSpace = new Namespace(XmlInhertance.DEFAULT_NAMESPACE_PREFIX, XmlInhertance.DEFAULT_NAMESPACE_URI);
+			nameSpace = inheriInstance.createDefaultNamespace();
 		}
 		return nameSpace;
 	}
