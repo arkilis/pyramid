@@ -19,9 +19,8 @@ public abstract class NodeOperator {
 	 * 得到该操作符在XML文档的名称
 	 * 
 	 * @return
-	 * @throws SDIException
 	 */
-	public String getOperatorName() throws SDIException {
+	public String getOperatorName()  {
 		return operatorName;
 	}
 
@@ -30,7 +29,6 @@ public abstract class NodeOperator {
 	 * 
 	 * @param newName
 	 * @return 如果此操作符以前被赋予旧的名称，则返回就名称，否则返回<code>NULL</code>
-	 * @throws SDIException
 	 */
 	public void setOperatorName(String newName) throws SDIException {
 		this.operatorName = newName;

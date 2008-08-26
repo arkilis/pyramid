@@ -1,0 +1,110 @@
+package com.pyramidframework.simpleconfig;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * 配置数据的集合的容器
+ * 
+ * @author Mikab Peng
+ * 
+ */
+public class ConfigContainer implements Cloneable {
+	HashMap datas = new HashMap();	//本节点的全部数据
+	HashMap pastDatas = new HashMap();//本节点中废弃掉的上节点的数据
+	
+	
+	/**
+	 * 得到本次节点配置数据所该改变的从上级继承来的数据
+	 * @return
+	 */
+	public Map getDataChanges(){
+		
+		return (Map)pastDatas.clone();
+	}
+	
+	/**
+	 * 得到配置信息中指定name属性键值下的数据配置中的字符串数据
+	 * 如果配置数据不是字符串，则抛出异常IllegalArgumentException
+	 * @param name
+	 * @return
+	 */
+	public String getString(String name){
+		Object o = getData(name);
+		if (o == null || o instanceof String){
+			return (String)o;
+		}
+		throw new IllegalArgumentException("The data " + name + " is :" + o.toString());
+	}
+
+	/**
+	 * 得到配置信息中指定name属性键值下的数据配置中的数据
+	 * @param name
+	 * @return
+	 */
+	public Object getData(String name) {
+		Object o = datas.get(name);
+		if (o instanceof List) {
+			o = ((List) o).get(0);
+		}
+		return o;
+	}
+	
+	/**
+	 * 复制对象自身，只复制对象的容有的数据容器
+	 */
+	public Object clone() throws CloneNotSupportedException {
+		ConfigContainer  newContainer = new ConfigContainer();
+		newContainer.datas = (HashMap)datas.clone();
+		return newContainer;
+	}
+
+	/**
+	 * 得到配置信息中指定name属性键值下的数据配置中的所有数据
+	 * 
+	 * @param name
+	 * @return
+	 */
+	public List getAllDatas(String name) {
+		Object o = datas.get(name);
+		if (o == null) {
+			return null;
+		}
+		if (o instanceof ArrayList) {//内部都使用ArrayList来保存数据
+			return (ArrayList)((ArrayList) o).clone();
+		}
+		List l = new ArrayList(1);
+		l.add(o);
+		return l;
+	}
+	
+	void setData(String name,Object data){
+		Object o = getData(name);
+		if (o == null){
+			datas.put(name, data);
+		}
+		if(! pastDatas.containsKey(name)){//已经在废弃的数据中指明
+			pastDatas.put(name, getData(name));
+			datas.put(name, data);
+		}else{
+			if(o instanceof ArrayList){
+				((ArrayList)o).add(data);
+			}else{
+				//如果包含一个，则以数组式存储
+				ArrayList a = new ArrayList(3);
+				a.add(o);
+				a.add(data);
+				datas.put(name, data);
+			}
+		}
+	}
+	
+	void removeData(String name){
+		if (datas.containsKey(name)){
+			pastDatas.put(name, getData(name));
+			datas.remove(name);
+		}
+	}
+}

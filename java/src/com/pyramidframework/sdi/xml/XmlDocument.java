@@ -32,7 +32,7 @@ import com.pyramidframework.sdi.SDIException;
 import com.pyramidframework.sdi.SDINode;
 
 /**
- * TODO:如果新加入的元素含有本文档未含有的namespace，则其默认在xpath中不支持，需要
+ * 如果新加入的元素含有本文档未含有的namespace，则其默认在xpath中不支持，需要
  * 
  * @author Mikab Peng
  * 
