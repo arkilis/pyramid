@@ -17,7 +17,17 @@ public class ConfigContainer implements Cloneable {
 	
 	
 	/**
-	 * 得到本次节点配置数据所该改变的从上级继承来的数据
+	 * 返回节点里的所有的配置数据的键值对。
+	 * 如果一个键有多个值，则以值是List的实例。
+	 * @return
+	 */
+	public Map getAllDatas() {
+		return (Map)datas.clone();
+	}
+
+	/**
+	 * 得到本次节点配置数据所该改变的从上级继承来的数据。
+	 * 如果一个键有多个值，则以值是List的实例
 	 * @return
 	 */
 	public Map getDataChanges(){
@@ -84,8 +94,7 @@ public class ConfigContainer implements Cloneable {
 		Object o = getData(name);
 		if (o == null){
 			datas.put(name, data);
-		}
-		if(! pastDatas.containsKey(name)){//已经在废弃的数据中指明
+		}else if(! pastDatas.containsKey(name)){//已经在废弃的数据中指明
 			pastDatas.put(name, getData(name));
 			datas.put(name, data);
 		}else{

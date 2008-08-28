@@ -3,30 +3,36 @@ package com.pyramidframework.ci.impl;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.dom4j.Namespace;
+
 import com.pyramidframework.ci.ConfigDomain;
 
 public class ConfigDomainImpl extends ConfigDomain {
 	final static ConfigDomainImpl NULL_CONFIG = new ConfigDomainImpl(null, null);// 用来保存没有配置的数据
-	
-	String parentPath = null;
+
+	Namespace namespace = null;
+	ConfigDomainImpl parentNode = null;
 	List children = new ArrayList();
 
 	public String getParentPath() {
-		return parentPath;
+		if (this.parentNode == null) {
+			return null;
+		}
+		return parentNode.getTargetPath();
 	}
 
-	public void setParentPath(String parentPath) {
+	public void setParentPath(ConfigDomainImpl parentNode) {
 
-		if (this.parentPath != null) {
+		if (this.parentNode != null) {
 			List parent = ((ConfigDomainImpl) getParent()).children;
 			if (parent.contains(this)) {
 				parent.remove(this);
 			}
 		}
-		if (parentPath != null) {
-			((ConfigDomainImpl) ConfigDamainTree.getConfigDomain(parentPath, this.configType, null)).children.add(this);
+		if (parentNode != null) {
+			parentNode.children.add(this);
 		}
-		this.parentPath = parentPath;
+		this.parentNode = parentNode;
 	}
 
 	public List getChildren() {
@@ -34,10 +40,10 @@ public class ConfigDomainImpl extends ConfigDomain {
 	}
 
 	public ConfigDomain getParent() {
-		if (this.parentPath == null || "none".equals(this.parentPath) || "/".equals(this.parentPath)) {
+		if (this.parentNode == null) {
 			return null;
 		}
-		return ConfigDamainTree.getConfigDomain(parentPath, this.configType, null);
+		return parentNode;
 	}
 
 	ConfigDomainImpl(String functionPath, String configType) {
@@ -46,11 +52,9 @@ public class ConfigDomainImpl extends ConfigDomain {
 	}
 
 	void setConfigData(Object data) {
-		this.configData = data;
-	}
 
-	void setCached(boolean cached) {
-		this.cached = cached;
+		this.configData = data;
+
 	}
 
 }

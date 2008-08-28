@@ -35,6 +35,30 @@ public class Dom4JHelper {
 		paElement.remove(OldElement);
 		paElement.addNewNode(index, newElement);
 	}
+	
+	/**
+	 * 把其除了属性之外的子节点附加到本节点在父节点中的位置
+	 * 主要用户模板
+	 * @param element
+	 * @return 有多个子对象被迁移
+	 */
+	public static int replaceNodeWithChildren(Element element){
+		DefaultElement paElement = (DefaultElement) element.getParent();
+		int index = paElement.indexOf(element);
+		
+		int cnt =0;
+		for(int i =0; i < element.nodeCount();i++){
+			org.dom4j.Node node = element.node(i);
+			if (!(node instanceof Attribute)){
+				node.detach();
+				paElement.addNewNode(index+cnt,node);
+				cnt ++;
+				i--;
+			}
+		}
+		element.detach();
+		return cnt;
+	}
 
 	/**
 	 * 将属性替换，如果是没有则添加

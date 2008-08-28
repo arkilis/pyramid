@@ -9,7 +9,6 @@ import java.util.regex.Pattern;
 import ognl.Ognl;
 
 import org.dom4j.Attribute;
-import org.dom4j.Document;
 import org.dom4j.Element;
 import org.dom4j.Namespace;
 import org.dom4j.Node;
@@ -17,6 +16,7 @@ import org.dom4j.QName;
 import org.dom4j.tree.Dom4JHelper;
 
 import com.pyramidframework.sdi.xml.XmlDocument;
+import com.pyramidframework.sdi.xml.XmlNode;
 
 /**
  * 使用OGNL表达式语言作为表达式
@@ -27,39 +27,44 @@ import com.pyramidframework.sdi.xml.XmlDocument;
 public class OGNLExpressionInterpreter {
 	Namespace namespace = null;
 	String source;
-	XmlDocument xmlDocument = null;
+	XmlNode xmlElement = null;
 
 	QName templateElementName = null;
 	QName templatePatternAttributeName = null;
 	QName templateIDAttributeName = null;
 
-	public OGNLExpressionInterpreter(Namespace namespace, XmlDocument document, String functionPath) {
+	public OGNLExpressionInterpreter(Namespace namespace, XmlNode element, String functionPath) {
 		this.namespace = namespace;
 
 		templateElementName = new QName("template", namespace);
 		templatePatternAttributeName = new QName("pattern", namespace);
 		templateIDAttributeName = new QName("id", namespace);
 		this.source = functionPath;
-		xmlDocument = document;
-
+		this.xmlElement = element;
 	}
 
-	public XmlDocument expandExpression() {
-		Document document = xmlDocument.getDom4jDocument();
+	/**
+	 * 计算模板的结果
+	 */
+	public static XmlNode expandTemplateExpression(XmlNode element, String targetPath, Namespace namespace) {
+		OGNLExpressionInterpreter interpreter = new OGNLExpressionInterpreter(namespace, element, targetPath);
+		return interpreter.expandExpression();
+	}
+
+	public XmlNode expandExpression() {
 		Map context = new HashMap();
-		Element rootElement = document.getRootElement();
+		Element rootElement = (Element) xmlElement.getDom4JNode();
 
 		Element element = expandElement(rootElement, context);
 		if (element == null) {
 			return null;
 		} else if (element == rootElement) {
 			// 节点未变化，不用修改
+			return xmlElement;
 		} else {
 			element.detach();
-			document.setRootElement(element);
+			return new XmlNode(element, xmlElement.getNamespaces());
 		}
-
-		return xmlDocument;
 	}
 
 	public Element expandElement(Element element, Map context) {
@@ -78,10 +83,15 @@ public class OGNLExpressionInterpreter {
 					} else if (n instanceof Element) {
 						Element newE = expandElement((Element) n, context);
 						if (newE == null) {
-							element.detach();
+							n.detach();
 						} else if (newE != n) {
 							newE.detach();
 							Dom4JHelper.replaceNode((Element) n, newE);
+						} else{
+							//如果返回的是模板，需要把模板的下级子项替换掉模板的那项
+							if (templateElementName.equals(newE.getQName())) {
+								i += Dom4JHelper.replaceNodeWithChildren(newE)-1;
+							}
 						}
 					} else {
 						String t = n.getText();
@@ -94,7 +104,15 @@ public class OGNLExpressionInterpreter {
 				context.remove(id);
 				List list = element.elements();
 				if (list.size() > 0) {
-					return (Element) list.get(0);
+
+					// 如果有父亲节点，则把本节点的全部子节点添加到其中，否则取第一个子节点
+					if (element.getParent() != null) {
+						//Dom4JHelper.replaceNodeWithChildren(element);//要防止子节点在父亲节点被重复计算
+
+						return element;
+					} else {
+						return (Element) list.get(0);
+					}
 				} else {
 					if (element.getParent() != null) {
 						Dom4JHelper.replaceText(element.getParent(), XmlDocument.createXmlText(element.getText()));
@@ -118,10 +136,15 @@ public class OGNLExpressionInterpreter {
 				} else if (n instanceof Element) {
 					Element newE = expandElement((Element) n, context);
 					if (newE == null) {
-						element.detach();
+						n.detach();
 					} else if (newE != n) {
 						newE.detach();
 						Dom4JHelper.replaceNode((Element) n, newE);
+					}else{
+						//如果返回的是模板，需要把模板的下级子项替换掉模板的那项
+						if (templateElementName.equals(newE.getQName())) {
+							i += Dom4JHelper.replaceNodeWithChildren(newE)-1;
+						}
 					}
 				} else {
 					String t = n.getText();
@@ -157,7 +180,7 @@ public class OGNLExpressionInterpreter {
 					String press = buffer.substring(indx + 2, eindx);
 					String value = null;
 					try {
-						value =  Ognl.getValue(press, context).toString();
+						value = Ognl.getValue(press, context).toString();
 					} catch (Exception e) {
 						// TODO: handle exception
 						throw new RuntimeException(e);
