@@ -3,10 +3,15 @@ package com.pyramidframework.ci;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.dom4j.Namespace;
+
 import com.pyramidframework.ci.impl.ConfigDamainTree;
+import com.pyramidframework.ci.impl.ConfigServiceProvider;
 
 public class ConfigurationManager {
 	private Map instanceParsers = null;
+
+	private Namespace namespace = new Namespace(DEFAULT_NAMESPACE_PREFIX, DEFAULT_NAMESPACE_URI);
 
 	/**
 	 * 得到配置信息的作用域
@@ -30,7 +35,27 @@ public class ConfigurationManager {
 			throw new NullPointerException("Can not fount Parser instance for configtype:" + configType);
 		}
 
-		return ConfigDamainTree.getConfigDomain(functionPath, configType, parser);
+		ConfigDomain domain = getDataProvider().getDomain(functionPath, configType, parser);
+
+		if (domain == null) {
+			throw new NullPointerException("Can not find any configuration!");
+		}
+		return domain;
+	}
+
+	/**
+	 * 获取配置数据获取服务的实现者
+	 * 
+	 * @return
+	 */
+	protected ConfigServiceProvider getDataProvider() {
+		if (_providerInstance == null) {
+			synchronized (this) {
+				_providerInstance = new ConfigDamainTree(this);
+			}
+		}
+
+		return _providerInstance;
 	}
 
 	/**
@@ -90,7 +115,7 @@ public class ConfigurationManager {
 	 * @param configType
 	 * @param documentParser
 	 */
-	public void addLocalParser(String configType, ConfigDocumentParser documentParser) {
+	public void addLocalParser(String configType, DefaultDocumentParser documentParser) {
 		this.instanceParsers.put(configType, documentParser);
 
 	}
@@ -130,19 +155,38 @@ public class ConfigurationManager {
 	 * @param documentParser
 	 *            对应的配置文件的解析器
 	 */
-	public void setGlobalParser(String type, ConfigDocumentParser documentParser) {
+	public void setGlobalParser(String type, DefaultDocumentParser documentParser) {
 		type_parser_map.put(type, documentParser);
 	}
 
 	/**
 	 * 获得已经设定的访问信息的全局解析器
 	 * 
-	 * @param type
+	 * @param configType
 	 *            配置文件类型
 	 * @return
 	 */
-	public ConfigDocumentParser getGlobalParser(String type) {
-		return (ConfigDocumentParser) type_parser_map.get(type);
+	public ConfigDocumentParser getGlobalParser(String configType) {
+		return (ConfigDocumentParser) type_parser_map.get(configType);
+	}
+
+	/**
+	 * 返回解析器使用的命名空间，默认是前缀为ci,URI为{@link ConfigurationManager.DEFAULT_NAMESPACE_URI}
+	 * 
+	 * @return
+	 */
+	public Namespace getNamespace() {
+		return namespace;
+	}
+
+	/**
+	 * 设置新的配置文件中配置继承相关的命名空间
+	 * 
+	 * @param namespace
+	 *            如果不使用命名空间，请设置null
+	 */
+	public void setNamespace(Namespace namespace) {
+		this.namespace = namespace;
 	}
 
 	/* 内部设置的配置文件对应的文件解析器 */
@@ -170,6 +214,8 @@ public class ConfigurationManager {
 	 * 功能路径的路径之间的分隔符，本系统的文件路径的分割也是采用这个
 	 */
 	public static final String FUNCTION_PATH_SEPARATOR = "/";
+
+	private ConfigServiceProvider _providerInstance;
 
 	/**
 	 * 判断指定的功能路径是不是符合要求的路径的表达形式：

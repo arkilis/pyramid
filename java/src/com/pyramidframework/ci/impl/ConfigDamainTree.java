@@ -13,7 +13,9 @@ import org.dom4j.Namespace;
 import org.dom4j.QName;
 
 import com.pyramidframework.ci.ConfigDocumentParser;
+import com.pyramidframework.ci.ConfigDomain;
 import com.pyramidframework.ci.ConfigurationManager;
+import com.pyramidframework.ci.DefaultDocumentParser;
 import com.pyramidframework.ci.IncrementDocumentParser;
 import com.pyramidframework.sdi.xml.XmlDocument;
 import com.pyramidframework.sdi.xml.XmlNode;
@@ -24,11 +26,15 @@ import com.pyramidframework.sdi.xml.XmlNode;
  * @author Mikab Peng
  * 
  */
-public class ConfigDamainTree {
+public class ConfigDamainTree implements ConfigServiceProvider {
 
 	public static String separator = ConfigurationManager.FUNCTION_PATH_SEPARATOR;
+	ConfigurationManager managerInstance = null;
 
-	public ConfigDomainImpl getDomain(String functionPath, String type, ConfigDocumentParser parser) {
+	/**
+	 * 
+	 */
+	public ConfigDomain getDomain(String functionPath, String type, ConfigDocumentParser parser) {
 		if (configTypesMap == null) {
 			configTypesMap = createContainerMap();
 		}
@@ -40,13 +46,9 @@ public class ConfigDamainTree {
 		}
 
 		ConfigDomainImpl configDomain = (ConfigDomainImpl) configTree.get(functionPath);
-		if (configDomain == null) {
-			if (parser == null) {
-				return null;
-			} else {
-				configDomain = lookupAndConstructDomain(functionPath, type, parser);
-				configTree.put(functionPath, configDomain);
-			}
+		if (configDomain == null ) { // cached=false时数据可能不再内部持有
+			configDomain = lookupAndConstructDomain(functionPath, type, parser, functionPath);
+			configTree.put(functionPath, configDomain);
 		}
 
 		// 如果没有配置项，则返回NULL
@@ -57,26 +59,41 @@ public class ConfigDamainTree {
 		return configDomain;
 	}
 
-	protected ConfigDomainImpl lookupAndConstructDomain(String functionPath, String type, ConfigDocumentParser parser) {
-		XmlNode node = lookupConfigedDomain(functionPath, type, parser);
+	/**
+	 * @param functionPath
+	 * @param targetPath
+	 *            真正引起本次求值的目标路径
+	 * @param configType
+	 * @param parser
+	 * @return
+	 */
+	protected ConfigDomainImpl lookupAndConstructDomain(String functionPath, String configType, ConfigDocumentParser parser, String targetPath) {
+		if(functionPath == null || "".equals(functionPath)){
+			return  null;
+		}
+		
+		XmlNode node = lookupConfigedDomain(functionPath, configType, parser, targetPath);
 
 		ConfigDomainImpl configDomain = null;
 
 		if (node != null) {
-			configDomain = new ConfigDomainImpl(functionPath, type);
-			return parseAndConstructDomain(configDomain, node, parser);
+			configDomain = new ConfigDomainImpl(functionPath, configType);
+			return parseAndConstructDomain(configDomain, targetPath, node, parser);
 		}
 
 		if (configDomain == null) {
-			configDomain = getDomainFromDefaultRule(functionPath, type, parser);
+			configDomain = getDomainFromDefaultRule(functionPath, configType, parser, targetPath);
 		}
 		return configDomain;
 	}
 
-	protected XmlNode lookupConfigedDomain(String functionPath, String type, ConfigDocumentParser parser) {
+	protected XmlNode lookupConfigedDomain(String functionPath, String configType, ConfigDocumentParser parser, String targetPath) {
 
 		if (functionPath == null || functionPath.length() == 0) {
-			return parser.getDefauDocument();
+			if (parser instanceof DefaultDocumentParser) {
+				return ((DefaultDocumentParser) parser).getDefaultDocument();
+			}
+			return null;
 		}
 
 		String oldPath = functionPath;
@@ -89,15 +106,15 @@ public class ConfigDamainTree {
 		ArrayList configFiles = new ArrayList();
 
 		// 先添加根目录的数据
-		configFiles.add(new File(parser.getConfigFileName(separator, type)));
+		configFiles.add(new File(parser.getConfigFileName(separator, configType)));
 
 		// 依次到各个目录下找对应的文件
-		StringBuffer path = new StringBuffer();
+		StringBuffer path = (new StringBuffer(oldPath.length())).append(separator);
 		while (tokenizer.hasMoreElements()) {
 			String t = tokenizer.nextToken();
 			if (t != null && t.length() > 0) {
-				path.append(separator).append(t);
-				File file = new File(parser.getConfigFileName(path.toString(), type));
+				path.append(t).append(separator);
+				File file = new File(parser.getConfigFileName(path.toString(), configType));
 				if (file.exists() && !configFiles.contains(file)) {
 					configFiles.add(file);
 				}
@@ -110,7 +127,7 @@ public class ConfigDamainTree {
 			XmlNode node = null;
 			try {
 				XmlDocument d = new XmlDocument(file);
-				node = searchNode(d, oldPath);
+				node = searchNode(d, oldPath, targetPath, configType);
 				if (node != null) {
 					return node;
 				}
@@ -123,7 +140,7 @@ public class ConfigDamainTree {
 		return null;
 	}
 
-	public XmlNode searchNode(XmlDocument document, String funcPath) {
+	public XmlNode searchNode(XmlDocument document, String funcPath, String targetPath, String configType) {
 
 		if (funcPath == null || funcPath.length() == 0) {
 			return null;
@@ -131,39 +148,58 @@ public class ConfigDamainTree {
 
 		Document doc = document.getDom4jDocument();
 		List l = doc.getRootElement().elements();
-		Namespace namespace = new Namespace(ConfigurationManager.DEFAULT_NAMESPACE_PREFIX, ConfigurationManager.DEFAULT_NAMESPACE_URI);
-		QName attribute = new QName("functionPath", namespace);
-		for (int i = l.size()-1; i >= 0; i--) {
+
+		QName fpAttribute = new QName("functionPath", getNamespace());
+		QName ctAttribute = new QName("configType", getNamespace());
+		// 如果声明了配置信息而且和查找的不一样，也不予以考虑
+
+		for (int i = l.size() - 1; i >= 0; i--) {
 			Element element = (Element) l.get(i);
-			if (funcPath.equals(element.attributeValue(attribute))) {
-				return new XmlNode(element, document.getNamespaces());
+			if (funcPath.equals(element.attributeValue(fpAttribute))) {
+
+				String ct = element.attributeValue(ctAttribute);
+				if (ct == null || "".equals(ct) || configType.equals(ct)) {
+					XmlNode node = new XmlNode(element, document.getNamespaces());
+					return OGNLExpressionInterpreter.expandTemplateExpression(node, targetPath, getNamespace());
+				}
 			}
 		}
 		return null;
 	}
 
-	protected ConfigDomainImpl getDomainFromDefaultRule(String functionPath, String type, ConfigDocumentParser parser) {
+	/**
+	 * 根据默认继承的规则来执行
+	 * 
+	 * @param functionPath
+	 * @param configType
+	 * @param parser
+	 * @return
+	 */
+	protected ConfigDomainImpl getDomainFromDefaultRule(String functionPath, String configType, ConfigDocumentParser parser, String targetPath) {
 		// 使用递归的方式从上级目录开始查找
-		if (functionPath.lastIndexOf(separator) >= 0) {
+		if (functionPath.lastIndexOf(separator) > 0) {
 			functionPath = ConfigurationManager.getParentPath(functionPath);
-			ConfigDomainImpl d = lookupAndConstructDomain(functionPath, type, parser);
+
+			ConfigDomainImpl d = lookupAndConstructDomain(functionPath, configType, parser, targetPath);
 
 			// 需要构建一个新的配置域
-			return constructDomain(functionPath, type, d.getConfigData(), d.isCached());
+			return constructDomain(functionPath, configType, d.getConfigData());
 		}
 
-		ConfigDomainImpl impl = NULL_CONFIG;
+		ConfigDomainImpl impl = null;
 		if (parser instanceof IncrementDocumentParser) {
-			Object o = ((IncrementDocumentParser) parser).getConfigData(null,null);
+			Object o = ((IncrementDocumentParser) parser).getConfigData(null, null);
 			if (o != null) {
-				impl = constructDomain(functionPath, type, o, true);
+				impl = constructDomain(functionPath, configType, o);
 			}
 
 		} else {
-			XmlDocument d = parser.getDefauDocument();
-			if (d != null) {
-				Object o = parser.parseConfigDocument(null, d);
-				impl = constructDomain(functionPath, type, o, true);
+			if (parser instanceof DefaultDocumentParser) {
+				XmlDocument d = ((DefaultDocumentParser) parser).getDefaultDocument();
+				if (d != null) {
+					Object o = parser.parseConfigDocument(null, d);
+					impl = constructDomain(functionPath, configType, o);
+				}
 			}
 		}
 		return impl;
@@ -178,18 +214,17 @@ public class ConfigDamainTree {
 	 * @param cached
 	 * @return
 	 */
-	protected ConfigDomainImpl constructDomain(String functionPath, String type, Object o, boolean cached) {
+	protected ConfigDomainImpl constructDomain(String functionPath, String type, Object o) {
 		// TODO:构建树形结构
 		ConfigDomainImpl impl = new ConfigDomainImpl(functionPath, type);
-		impl.setCached(cached);
 		impl.setConfigData(o);
 		return impl;
 	}
 
-	public ConfigDomainImpl parseAndConstructDomain(ConfigDomainImpl domainImpl, XmlNode node, ConfigDocumentParser parser) {
+	public ConfigDomainImpl parseAndConstructDomain(ConfigDomainImpl domainImpl, String targetPath, XmlNode node, ConfigDocumentParser parser) {
 		ConfigurationFileParser fileParser = new ConfigurationFileParser(domainImpl, node, parser, this);
 
-		return fileParser.parseData();
+		return fileParser.parseData(targetPath);
 	}
 
 	protected Map createContainerMap() {
@@ -197,15 +232,16 @@ public class ConfigDamainTree {
 	}
 
 	static Map configTypesMap = null;
-	static ConfigDamainTree _instance = null;
+	static ConfigServiceProvider _instance = null;
 
 	static ConfigDomainImpl NULL_CONFIG = ConfigDomainImpl.NULL_CONFIG;// 用来保存没有配置的数据
 
-	public static ConfigDomainImpl getConfigDomain(String functionPath, String type, ConfigDocumentParser parser) {
-		if (_instance == null) {
-			_instance = new ConfigDamainTree();
-		}
-		return _instance.getDomain(functionPath, type, parser);
+	public ConfigDamainTree(ConfigurationManager manager) {
+		this.managerInstance = manager;
+	}
+
+	Namespace getNamespace() {
+		return managerInstance.getNamespace();
 	}
 
 }

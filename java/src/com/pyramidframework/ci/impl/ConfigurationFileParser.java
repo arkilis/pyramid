@@ -3,11 +3,11 @@ package com.pyramidframework.ci.impl;
 import java.util.List;
 
 import org.dom4j.Element;
-import org.dom4j.Namespace;
 import org.dom4j.QName;
 
 import com.pyramidframework.ci.ConfigDocumentParser;
 import com.pyramidframework.ci.ConfigurationManager;
+import com.pyramidframework.ci.DefaultDocumentParser;
 import com.pyramidframework.ci.IncrementDocumentParser;
 import com.pyramidframework.sdi.NodeOperator;
 import com.pyramidframework.sdi.SDIContext;
@@ -30,10 +30,7 @@ public class ConfigurationFileParser {
 
 	final String none_inheritance = ConfigurationManager.INHERITE_TYPE_CONSTANTS[3];
 
-	Namespace namespace = new Namespace(ConfigurationManager.DEFAULT_NAMESPACE_PREFIX, ConfigurationManager.DEFAULT_NAMESPACE_URI);
-
-	QName DomainCachedAttribute = new QName("cached", namespace);
-	QName DomianInheriteFromAttribute = new QName("inheriteFrom", namespace);
+	QName DomianInheriteFromAttribute = null;
 
 	/**
 	 * 解析文件
@@ -46,7 +43,11 @@ public class ConfigurationFileParser {
 	public ConfigurationFileParser(ConfigDomainImpl domainImpl, XmlNode dataNode, ConfigDocumentParser parser, ConfigDamainTree instance) {
 		domain = domainImpl;
 		this.parser = parser;
+
 		tree = instance;
+		//DomainCachedAttribute = new QName("cached", instance.managerInstance.getNamespace());
+		DomianInheriteFromAttribute = new QName("inheriteFrom", instance.managerInstance.getNamespace());
+
 		xmlDocument = parseDomainInfo(dataNode, domain);
 	}
 
@@ -61,21 +62,20 @@ public class ConfigurationFileParser {
 
 		try {
 			Element element = (Element) dataNode.getDom4JNode();
-			configDomain.setCached("true".equalsIgnoreCase(element.attributeValue(DomainCachedAttribute)));
-
+			
 			String parentPath = null;
 			String inheriteFrom = element.attributeValue(DomianInheriteFromAttribute);
 
 			// 从上级继承
 			if (inheriteFrom == null || inheriteFrom.length() == 0 || inheriteFrom.equals(ConfigurationManager.INHERITE_TYPE_CONSTANTS[0])) {
-				
+
 				parentPath = ConfigurationManager.getParentPath(domain.getTargetPath());
-				
+
 			} else if (inheriteFrom.equals(ConfigurationManager.INHERITE_TYPE_CONSTANTS[1])) {
 				parentPath = "/";
 			} else if (inheriteFrom.equals(ConfigurationManager.INHERITE_TYPE_CONSTANTS[2])) {
 				parentPath = null;
-				
+
 			} else if (inheriteFrom.equals(none_inheritance)) { // none,不从任何地方继承
 				parentPath = none_inheritance;
 			} else {
@@ -86,11 +86,11 @@ public class ConfigurationFileParser {
 				throw new IllegalArgumentException("Parent path can not be same with this path!");
 			}
 
-			if (!ConfigurationManager.isCorrectFunctionPath(parentPath) ) {
+			if (!ConfigurationManager.isCorrectFunctionPath(parentPath)) {
 				throw new IllegalArgumentException("The value of the attribute inheriteFrom is not valid!");
 			}
-			
-			domain.setParentPath(parentPath);
+
+			domain.setParentPath((ConfigDomainImpl) tree.getDomain(parentPath, domain.getConfigType(), parser));
 
 			// 判断有没有设定继承规则数据
 			List d = dataNode.getChildren();
@@ -105,20 +105,21 @@ public class ConfigurationFileParser {
 		return null;
 	}
 
-	public ConfigDomainImpl parseData() {
+	public ConfigDomainImpl parseData(String targetPath) {
 		if (parser instanceof IncrementDocumentParser) {
 			IncrementDocumentParser iParser = (IncrementDocumentParser) parser;
-			incrementParse(iParser);
+
+			incrementParse(iParser, targetPath);
 		} else {
-			xmlDocument = inheriteAndParse(xmlDocument, domain);
+			xmlDocument = inheriteAndParse(xmlDocument, targetPath, domain);
 
 			// 执行解析
-			parseOriginalData();
+			domain.setConfigData(parser.parseConfigDocument(domain, xmlDocument));
 		}
 		return domain;
 	}
 
-	public void incrementParse(IncrementDocumentParser iParser) {
+	public void incrementParse(IncrementDocumentParser iParser, String targetPath) {
 		Object parentNode = null;
 
 		String parentPath = domain.getParentPath();
@@ -127,12 +128,12 @@ public class ConfigurationFileParser {
 			// 不给其设定继承来的数据
 
 		} else if (parentPath == null || parentPath.length() == 0) {// 继承默认设置
-			parentNode = iParser.getConfigData(null,null);
+			parentNode = iParser.getConfigData(null, null);
 		} else {
-			ConfigDomainImpl d = tree.getDomain(parentPath, domain.getConfigType(), iParser);
+			ConfigDomainImpl d = tree.lookupAndConstructDomain(parentPath, domain.getConfigType(), iParser, targetPath);
 			parentNode = d == null ? null : d.getConfigData();
 		}
-		
+
 		Object d = iParser.getConfigData(domain, parentNode);
 		domain.setConfigData(d);
 
@@ -141,23 +142,25 @@ public class ConfigurationFileParser {
 			if (xmlDocument == null) {
 				domain = ConfigDamainTree.NULL_CONFIG;
 			} else {
-				parseOriginalData();
+				domain.setConfigData(parser.parseConfigDocument(domain, xmlDocument));
 			}
 		} else {
 			if (xmlDocument == null) {
 				domain.setConfigData(parentNode);
 			} else {
-				this.xmlDocument = expandTemplateExpression(this.xmlDocument);// 先计算表达式，然后进行
+				// this.xmlDocument =
+				// expandTemplateExpression(this.xmlDocument,targetPath);//
+				// 先计算表达式，然后进行
 
-				ConfigurationInheritance inheritance = new ConfigurationInheritance();
+				ConfigurationInheritance inheritance = new ConfigurationInheritance(tree);
 				XmlConvter convter = (XmlConvter) inheritance.getIncrementInheritanceConvter();
 				SDIContext context = new SDIContext();
 				context.setRule(xmlDocument);
 				try {
 					List list = xmlDocument.getChildren();
-					
-					Object data = iParser.getConfigData(domain,parentNode);
-					
+
+					Object data = domain.getConfigData();
+
 					for (int i = 0; i < list.size(); i++) {
 						XmlNode node = (XmlNode) list.get(i);
 						// 如果是operator需要先解析成operator的形式
@@ -182,25 +185,22 @@ public class ConfigurationFileParser {
 		}
 	}
 
-	protected void parseOriginalData() {
-		this.xmlDocument = expandTemplateExpression(this.xmlDocument);// 先计算表达式，然后进行
-		domain.setConfigData(parser.parseConfigDocument(domain, xmlDocument));
-	}
-
-	public XmlDocument inheriteAndParse(XmlDocument document, ConfigDomainImpl configDomain) {
+	public XmlDocument inheriteAndParse(XmlDocument document, String targetPath, ConfigDomainImpl configDomain) {
 		String parentPath = configDomain.getParentPath();
 
 		XmlDocument parent = null;
 		if (none_inheritance.equals(parentPath)) {
 
 		} else if (parentPath == null || parentPath.length() < 0) {
-			parent = parser.getDefauDocument();
+			if (parser instanceof DefaultDocumentParser) {
+				parent = ((DefaultDocumentParser) parser).getDefaultDocument();
+			}
 		} else {
-			XmlNode parentNode = tree.lookupConfigedDomain(parentPath, configDomain.parentPath, parser);
+			XmlNode parentNode = tree.lookupConfigedDomain(parentPath, configDomain.getConfigType(), parser, targetPath);
 			if (parentNode != null) {
 				ConfigDomainImpl parentImpl = new ConfigDomainImpl(parentPath, configDomain.getConfigType());
 				parent = parseDomainInfo(parentNode, parentImpl);
-				parent = inheriteAndParse(parent, parentImpl); // 递归之
+				parent = inheriteAndParse(parent, targetPath, parentImpl); // 递归之
 			}
 		}
 
@@ -210,20 +210,12 @@ public class ConfigurationFileParser {
 			return parent;
 		} else {
 			// 先执行继承
-			ConfigurationInheritance inheritance = new ConfigurationInheritance();
+			ConfigurationInheritance inheritance = new ConfigurationInheritance(tree);
 			try {
 				return (XmlDocument) inheritance.getTargetDocument(parent, document);
 			} catch (Exception e) {
 				throw new RuntimeException(e);
 			}
 		}
-	}
-
-	/**
-	 * 计算模板的结果
-	 */
-	public XmlDocument expandTemplateExpression(XmlDocument document) {
-			OGNLExpressionInterpreter interpreter = new OGNLExpressionInterpreter(namespace,document,domain.getTargetPath());
-			return interpreter.expandExpression();
 	}
 }

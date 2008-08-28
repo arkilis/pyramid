@@ -20,12 +20,6 @@ public interface ConfigDocumentParser {
 	
 	
 	/**
-	 * 得到默认的配置文档，可以是包含模板的文档
-	 * @return
-	 */
-	public XmlDocument getDefauDocument();
-	
-	/**
 	 * 找到功能对应的配置文件路径。
 	 * 该功能所在的模块极其上级模块的配置文件都是搜索的潜在路径，但是以最靠近功能的路径的配置文件内的信息为准
 	 * @param functionPath 请求的配置路径，都是目录的形式
