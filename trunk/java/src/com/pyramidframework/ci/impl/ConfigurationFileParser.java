@@ -69,7 +69,7 @@ public class ConfigurationFileParser {
 			// 从上级继承
 			if (inheriteFrom == null || inheriteFrom.length() == 0 || inheriteFrom.equals(ConfigurationManager.INHERITE_TYPE_CONSTANTS[0])) {
 
-				parentPath = ConfigurationManager.getParentPath(domain.getTargetPath());
+				parentPath = ConfigurationManager.getDefaultParentPath(domain.getTargetPath());
 
 			} else if (inheriteFrom.equals(ConfigurationManager.INHERITE_TYPE_CONSTANTS[1])) {
 				parentPath = "/";
@@ -86,11 +86,11 @@ public class ConfigurationFileParser {
 				throw new IllegalArgumentException("Parent path can not be same with this path!");
 			}
 
-			if (!ConfigurationManager.isCorrectFunctionPath(parentPath)) {
+			if (!ConfigurationManager.isValidFunctionPath(parentPath)) {
 				throw new IllegalArgumentException("The value of the attribute inheriteFrom is not valid!");
 			}
 
-			domain.setParentPath((ConfigDomainImpl) tree.getDomain(parentPath, domain.getConfigType(), parser));
+			domain.setParentPath(parentPath);
 
 			// 判断有没有设定继承规则数据
 			List d = dataNode.getChildren();
@@ -128,19 +128,19 @@ public class ConfigurationFileParser {
 			// 不给其设定继承来的数据
 
 		} else if (parentPath == null || parentPath.length() == 0) {// 继承默认设置
-			parentNode = iParser.getConfigData(null, null);
+			parentNode = iParser.getDefaultConfigData(null, null);
 		} else {
 			ConfigDomainImpl d = tree.lookupAndConstructDomain(parentPath, domain.getConfigType(), iParser, targetPath);
 			parentNode = d == null ? null : d.getConfigData();
 		}
 
-		Object d = iParser.getConfigData(domain, parentNode);
+		Object d = iParser.getDefaultConfigData(domain, parentNode);
 		domain.setConfigData(d);
 
 		// 如果上级未指定，则下级作为根本数据而不是模板
 		if (parentNode == null) {
 			if (xmlDocument == null) {
-				domain = ConfigDamainTree.NULL_CONFIG;
+				domain = null;
 			} else {
 				domain.setConfigData(parser.parseConfigDocument(domain, xmlDocument));
 			}

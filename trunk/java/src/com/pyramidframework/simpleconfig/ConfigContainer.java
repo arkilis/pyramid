@@ -90,6 +90,22 @@ public class ConfigContainer implements Cloneable {
 		return l;
 	}
 	
+	/**
+	 * 如果两个数据一样，则认为是一样的
+	 * @param obj 用来比较的对象
+	 */
+	public boolean equals(Object obj) {
+		if(obj == null) return false;
+		if (obj.getClass().equals(this.getClass())){
+			ConfigContainer t =(ConfigContainer)obj;
+			if(datas.equals(t.datas) && pastDatas.equals(t.pastDatas)){
+				return true;
+			}
+		}
+		return false;
+	}
+	
+	
 	void setData(String name,Object data){
 		Object o = getData(name);
 		if (o == null){

@@ -1,10 +1,13 @@
 package com.pyramidframework.simpleconfig;
 
 import java.util.List;
+import java.util.Map;
 
+import org.dom4j.Attribute;
 import org.dom4j.Document;
 import org.dom4j.Element;
 import org.dom4j.Namespace;
+import org.dom4j.Node;
 import org.dom4j.QName;
 
 import com.pyramidframework.ci.ConfigDomain;
@@ -89,6 +92,11 @@ public class SimpleConfigManager extends TypedManager {
 	public SimpleConfigManager(String configType, String rootFileDirectory) {
 		super(configType);
 		this.qname = new QName("name");
+
+		// 去掉最后的那个/
+		while (rootFileDirectory.endsWith("/")) {
+			rootFileDirectory = rootFileDirectory.substring(0, rootFileDirectory.length() - 1);
+		}
 		this.rootFileDirectory = rootFileDirectory;
 		createDocumentParser();
 	}
@@ -155,11 +163,12 @@ public class SimpleConfigManager extends TypedManager {
 		 */
 		this.beanReader = beanReader;
 	}
-	
+
 	/**
 	 * simpleconfig的文件的解析器，使用内部类主要为了隔离函数之间的混淆
+	 * 
 	 * @author Mikab Peng
-	 *
+	 * 
 	 */
 	protected class SimpleConfigDocumentParser implements IncrementDocumentParser {
 
@@ -175,26 +184,40 @@ public class SimpleConfigManager extends TypedManager {
 			if (data == null) {
 				data = new ConfigContainer();
 			}
+			String name = null;
+			Node node = childOfRoot.getDom4JNode();
 
-			Element e = (Element) childOfRoot.getDom4JNode();
-			String name = e.attributeValue(qname);
+			if (node instanceof Element) { // 包含的元素是一个element
+				Element e = (Element) node;
+				name = e.attributeValue(qname);
 
-			if (operator != null && "remove".equals(operator.getOperatorName())) {
-				data.removeData(name);
-			} else {
-				List child = e.elements();
-				if (child.size() > 0) {
-					if (beanReader == null) {
-						throw new NullPointerException("You must define a XmlBeanReader instance form an custom XML!");
-					} else {
-						XmlNode n = new XmlNode((Element) child.get(0), childOfRoot.getNamespaces());
-						data.setData(name, beanReader.readFromXmlElement(n));
-					}
+				if (operator != null && "remove".equals(operator.getOperatorName())) {
+					data.removeData(name);
 				} else {
-					data.setData(name, e.getText());
+
+					List child = e.elements();
+					if (child.size() > 0) {
+						if (beanReader == null) {
+							throw new NullPointerException("You must define a XmlBeanReader instance form an custom XML!");
+						} else {
+							XmlNode n = new XmlNode((Element) child.get(0), childOfRoot.getNamespaces());
+							data.setData(name, beanReader.readFromXmlElement(n));
+						}
+					} else {
+						data.setData(name, e.getText());
+					}
+				}
+			} else if (node instanceof Attribute) { // 属性，则需要看是不是指定的Name，只支持删除
+				if (operator != null && "remove".equals(operator.getOperatorName()) && "name".equals(((Attribute) node).getName())) {
+					name = ((Attribute) node).getValue();
+					data.removeData(name);
+				}
+			} else {	//其他的完全按照文本对待，只支持删除
+				if (operator != null && "remove".equals(operator.getOperatorName())) {
+					name = node.getText().trim();
+					data.removeData(name);
 				}
 			}
-
 			return data;
 		}
 
@@ -253,7 +276,7 @@ public class SimpleConfigManager extends TypedManager {
 		 *            配置信息域
 		 * @return 如果domain=null,则返回为null，否则返回一个ConfigurationContainer的新的实例
 		 */
-		public Object getConfigData(ConfigDomain domain, Object parentDataNode) {
+		public Object getDefaultConfigData(ConfigDomain domain, Object parentDataNode) {
 
 			// 软件没有默认设定配置信息
 			if (domain == null) {
@@ -271,6 +294,16 @@ public class SimpleConfigManager extends TypedManager {
 				// 其他情况下默认生成一下新的实例
 				return new ConfigContainer();
 			}
+		}
+		
+		/**
+		 * 将manaer本身放入到上下文见中的"SimpleConfigManager"的名字下
+		 * @param templateContext 模板执行的上下文
+		 */
+		public void InitTemplateContext(Map templateContext) {
+			
+			templateContext.put("SimpleConfigManager", SimpleConfigManager.this);
+			
 		}
 	}
 

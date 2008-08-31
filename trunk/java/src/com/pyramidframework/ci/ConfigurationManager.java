@@ -9,9 +9,10 @@ import com.pyramidframework.ci.impl.ConfigDamainTree;
 import com.pyramidframework.ci.impl.ConfigServiceProvider;
 
 public class ConfigurationManager {
-	private Map instanceParsers = null;
+	protected Map instanceParsers = null;
 
-	private Namespace namespace = new Namespace(DEFAULT_NAMESPACE_PREFIX, DEFAULT_NAMESPACE_URI);
+	protected Namespace namespace = new Namespace(DEFAULT_NAMESPACE_PREFIX, DEFAULT_NAMESPACE_URI);
+	protected ConfigServiceProvider _providerInstance;
 
 	/**
 	 * 得到配置信息的作用域
@@ -26,8 +27,8 @@ public class ConfigurationManager {
 			throw new NullPointerException("The configType parameter can not be NULL!");
 		}
 
-		if (!isCorrectFunctionPath(functionPath)) {
-			throw new IllegalArgumentException("The functionPath parameter is not validate!");
+		if (!isValidFunctionPath(functionPath)) {
+			throw new IllegalArgumentException("The functionPath parameter is not valid!");
 		}
 
 		ConfigDocumentParser parser = getInstanceParser(configType);
@@ -116,36 +117,13 @@ public class ConfigurationManager {
 	 * @param documentParser
 	 */
 	public void addLocalParser(String configType, DefaultDocumentParser documentParser) {
+		if(this.instanceParsers == null){
+			this.instanceParsers = new HashMap();
+		}
 		this.instanceParsers.put(configType, documentParser);
 
 	}
 
-	/**
-	 * 
-	 * @param functionPath
-	 * @param configType
-	 * @return
-	 */
-	public static ConfigDomain getDomainByPath(String functionPath, String configType) {
-		return _managerInstance.getConfigDomain(functionPath, configType);
-	}
-
-	/**
-	 * 得到配置在具体的功能路径上的配置数据
-	 * 
-	 * @param functionPath
-	 *            配置的功能路径
-	 * @param configType
-	 *            配置的数据路径
-	 * @return
-	 */
-	public static Object getConfigDataByPath(String functionPath, String configType) {
-		ConfigDomain domain = _managerInstance.getConfigDomain(functionPath, configType);
-		if (domain != null) {
-			return domain.getConfigData();
-		}
-		return null;
-	}
 
 	/**
 	 * 设置全局的配置文件类型对应的解析器
@@ -192,8 +170,7 @@ public class ConfigurationManager {
 	/* 内部设置的配置文件对应的文件解析器 */
 	private static HashMap type_parser_map = new HashMap();
 
-	/* 内部持有的实例 */
-	static ConfigurationManager _managerInstance = new ConfigurationManager();
+
 
 	/**
 	 * ConfigurationInheritance模块的默认URL
@@ -215,7 +192,7 @@ public class ConfigurationManager {
 	 */
 	public static final String FUNCTION_PATH_SEPARATOR = "/";
 
-	private ConfigServiceProvider _providerInstance;
+	
 
 	/**
 	 * 判断指定的功能路径是不是符合要求的路径的表达形式：
@@ -224,7 +201,7 @@ public class ConfigurationManager {
 	 * @param functionPath
 	 * @return
 	 */
-	public static final boolean isCorrectFunctionPath(String functionPath) {
+	public static  boolean isValidFunctionPath(String functionPath) {
 		if (functionPath == null || ConfigurationManager.INHERITE_TYPE_CONSTANTS[3].equals(functionPath)) {// 表示默认配置
 			return true;
 		}
@@ -242,13 +219,13 @@ public class ConfigurationManager {
 	}
 
 	/**
-	 * 根据指定的路径得到上级的功能路径，如果是在系统根目录级（'/'），则返回NULL
+	 * 按照默认的继承规则得到指定的路径的上级的功能路径，如果是在系统根目录级（'/'），则返回NULL
 	 * 
 	 * @param functionPath
 	 *            符合函数isCorrectFunctionPath校验的功能路径
 	 * @return NULL or parent path
 	 */
-	public static final String getParentPath(String functionPath) {
+	public static  String getDefaultParentPath(String functionPath) {
 		char c = FUNCTION_PATH_SEPARATOR.charAt(0);
 
 		if (functionPath == null || functionPath.length() < 2) {

@@ -15,6 +15,7 @@ import org.dom4j.Node;
 import org.dom4j.QName;
 import org.dom4j.tree.Dom4JHelper;
 
+import com.pyramidframework.ci.ConfigDocumentParser;
 import com.pyramidframework.sdi.xml.XmlDocument;
 import com.pyramidframework.sdi.xml.XmlNode;
 
@@ -46,13 +47,18 @@ public class OGNLExpressionInterpreter {
 	/**
 	 * 计算模板的结果
 	 */
-	public static XmlNode expandTemplateExpression(XmlNode element, String targetPath, Namespace namespace) {
+	public static XmlNode expandTemplateExpression(XmlNode element, String targetPath, Namespace namespace,ConfigDocumentParser parser) {
 		OGNLExpressionInterpreter interpreter = new OGNLExpressionInterpreter(namespace, element, targetPath);
-		return interpreter.expandExpression();
+		
+		Map context = new HashMap();
+		parser.InitTemplateContext(context);
+		
+		return interpreter.expandExpression(context);
 	}
 
-	public XmlNode expandExpression() {
-		Map context = new HashMap();
+	public XmlNode expandExpression(Map context) {
+		
+		
 		Element rootElement = (Element) xmlElement.getDom4JNode();
 
 		Element element = expandElement(rootElement, context);
@@ -75,7 +81,7 @@ public class OGNLExpressionInterpreter {
 			Pattern sp = Pattern.compile(pattern);
 			Matcher matcher = sp.matcher(source);
 			if (matcher.matches()) {
-				context.put(id, matcher);
+				Object OldObject = context.put(id, matcher);
 				for (int i = 0; i < element.nodeCount(); i++) {
 					Node n = element.node(i);
 					if (n instanceof Attribute) {
@@ -102,6 +108,12 @@ public class OGNLExpressionInterpreter {
 					}
 				}
 				context.remove(id);
+				if(OldObject != null){
+					context.put(id, OldObject);
+				}
+				
+				//如果原来有对象的对象，需要再放置回去，迎接后继的计算
+				
 				List list = element.elements();
 				if (list.size() > 0) {
 
@@ -124,15 +136,16 @@ public class OGNLExpressionInterpreter {
 			}
 
 		} else {
+			//处理属性
+			List list = element.attributes();
+			for(int i =0; i < list.size();i++){
+				expandAttributeValue(element, context, (Node)list.get(i));
+			}
+			//处理子节点
 			for (int i = 0; i < element.nodeCount(); i++) {
 				Node n = element.node(i);
 				if (n instanceof Attribute) {
-					Attribute attribute = (Attribute) n;
-					String v = attribute.getValue();
-					v = expandString(v, context);
-					if (v != null) {
-						Dom4JHelper.replaceAttribute(element, XmlDocument.creatXmlAttribute(attribute.getName(), v, attribute.getNamespace()));
-					}
+					expandAttributeValue(element, context, n);
 				} else if (n instanceof Element) {
 					Element newE = expandElement((Element) n, context);
 					if (newE == null) {
@@ -155,6 +168,21 @@ public class OGNLExpressionInterpreter {
 				}
 			}
 			return element;
+		}
+	}
+
+	/**
+	 * 将属性中的模板字符展开
+	 * @param element
+	 * @param context
+	 * @param n
+	 */
+	protected void expandAttributeValue(Element element, Map context, Node node) {
+		Attribute attribute = (Attribute) node;
+		String v = attribute.getValue();
+		v = expandString(v, context);
+		if (v != null) {
+			Dom4JHelper.replaceAttribute(element, XmlDocument.creatXmlAttribute(attribute.getName(), v, attribute.getNamespace()));
 		}
 	}
 
