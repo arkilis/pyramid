@@ -1,5 +1,7 @@
 package com.pyramidframework.ci;
 
+import java.util.Map;
+
 import com.pyramidframework.sdi.xml.XmlDocument;
 
 /**
@@ -26,5 +28,16 @@ public interface ConfigDocumentParser {
 	 * @param configType 配置信息的类型
 	 */
 	public String getConfigFileName(String functionPath,String configType);
+	
+	
+	/**
+	 * 初始化模板语言的执行的上下文.可以将一些对象放在这个里面，以便在模板中直接引用.模板中可以使用{{和}}将需要执行的赋值脚本括起来。
+	 * 如：<br>
+	 * <code>templateContext.put("programe_name","simpleconfig");</code><br>
+	 * 则在配置文件中可以如下直接使用此变量：<br>
+	 * &lt;item name="programe_name"&gt;the programe'name is {{programe_name}} !&lt;/item&gt;</item>
+	 * @param templateContext 脚本解析的根上下文
+	 */
+	public void InitTemplateContext(Map templateContext);
 	
 }

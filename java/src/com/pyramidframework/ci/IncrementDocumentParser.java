@@ -30,5 +30,5 @@ public interface IncrementDocumentParser extends ConfigDocumentParser {
 	 * @param parentDataNode 该节点指定的上级节点的数据
 	 * @return
 	 */
-	public  Object getConfigData(ConfigDomain domain,Object parentDataNode);
+	public  Object getDefaultConfigData(ConfigDomain domain,Object parentDataNode);
 }

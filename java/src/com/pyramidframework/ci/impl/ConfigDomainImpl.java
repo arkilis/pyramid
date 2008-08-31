@@ -8,20 +8,17 @@ import org.dom4j.Namespace;
 import com.pyramidframework.ci.ConfigDomain;
 
 public class ConfigDomainImpl extends ConfigDomain {
-	final static ConfigDomainImpl NULL_CONFIG = new ConfigDomainImpl(null, null);// 用来保存没有配置的数据
-
+	
 	Namespace namespace = null;
 	ConfigDomainImpl parentNode = null;
 	List children = new ArrayList();
+	String parentPath = null;
 
 	public String getParentPath() {
-		if (this.parentNode == null) {
-			return null;
-		}
-		return parentNode.getTargetPath();
+		return parentPath;
 	}
 
-	public void setParentPath(ConfigDomainImpl parentNode) {
+	public void setParentNode(ConfigDomainImpl parentNode) {
 
 		if (this.parentNode != null) {
 			List parent = ((ConfigDomainImpl) getParent()).children;
@@ -55,6 +52,14 @@ public class ConfigDomainImpl extends ConfigDomain {
 
 		this.configData = data;
 
+	}
+
+	public void setParentPath(String parentPath) {
+		this.parentPath = parentPath;
+	}
+
+	public String toString() {
+		return super.toString() + "[configType=" + configType + "|targetPath=" + targetPath + "|configData=" + configData + "]";
 	}
 
 }
