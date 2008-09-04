@@ -6,8 +6,9 @@ import com.pyramidframework.sdi.SDIException;
 import com.pyramidframework.sdi.SDINode;
 
 /**
- * 引用外部资源文档的 用法<code>&lt;reference type="resource(ddd.xml)" path="//"&gt;</code>
- * 
+ * 引用外部资源文档的 用法如下：<br>
+ * <code>&lt;reference type="resource(ddd.xml)" path="/"&gt;</code><br>
+ * 括号内的字符串可以文件系统的路径名，也可以是jar包里的资源的路径名
  * @author Mikab Peng
  * 
  */

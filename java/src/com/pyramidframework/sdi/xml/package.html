@@ -1,0 +1,15 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=GBK">
+<title></title>
+</head>
+<body>
+XML继承的实现包。用法如下：<br>
+ XmlDocument templet_comp = new XmlDocument("resource/sample/show_company_templet.htm");<br>
+ XmlDocument rule_comp = new XmlDocument("resource/sample/rule_show_company.xml");<br>
+ XmlDocument target = XmlInhertance.doInheritance(templet_comp, rule_comp);<br>
+ 其中templet_comp是用于继承的父文档，rule_comp则是描述继承规则的规则文档，target则是转换后的结果。更多信息请参见{@link XmlDocument}和
+ 更多信息请参见{@link XmlInhertance}
+</body>
+</html>

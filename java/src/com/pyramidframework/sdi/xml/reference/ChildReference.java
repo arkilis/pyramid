@@ -5,7 +5,8 @@ import com.pyramidframework.sdi.SDIException;
 import com.pyramidframework.sdi.SDINode;
 
 /**
- * 引用新生成的文档中的某个节点的值
+ * 引用新生成的文档中的某个节点的值，用法如下：
+ * &lt;sdi:reference sdi:type="Child" sdi:path="/catalog/cd[1]" /&gt;
  * 
  * @author Mikab Peng
  * 

@@ -7,7 +7,8 @@ import com.pyramidframework.sdi.SDIException;
 import com.pyramidframework.sdi.SDINode;
 
 /**
- * 引用记录变化文档的某个节点的值 需要注意如果该节点有reference类型的子节点，是直接拷贝过来而不求其具体的值
+ * 引用继承定义规则文档的某个节点的值.需要注意如果该节点有reference类型的子节点，是直接拷贝过来而不求其具体的值.用法如下：
+ * &lt;sdi:reference sdi:type="New" sdi:path="/catalog/cd[1]" /&gt;
  * 
  * @author Mikab Peng
  * 
