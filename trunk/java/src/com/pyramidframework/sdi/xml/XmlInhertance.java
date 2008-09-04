@@ -11,8 +11,12 @@ import com.pyramidframework.sdi.SDIException;
 import com.pyramidframework.sdi.StructuredDocumentInheritance;
 
 /**
- * 用于XML文件转换的标准实现
- * 
+ * 用于XML文件转换的标准实现.用法如下：<br>
+ * XmlDocument templet_comp = new XmlDocument("resource/sample/show_company_templet.htm");<br>
+ * XmlDocument rule_comp = new XmlDocument("resource/sample/rule_show_company.xml");<br>
+ * XmlDocument target = XmlInhertance.doInheritance(templet_comp, rule_comp);<br>
+ * 其中templet_comp是用于继承的父文档，rule_comp则是描述继承规则的规则文档，target则是转换后的结果。
+ * 更多信息请参见{@link XmlDocument}
  * @author Mikab Peng
  * @version 2008-7-27
  */

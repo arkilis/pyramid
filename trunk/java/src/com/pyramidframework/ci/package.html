@@ -1,0 +1,49 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=GBK">
+</head>
+<body>
+	ci：Configuration Inheritance（配置继承）<br>
+	本包包含了配置继承的管理器类以及文档解析接口，具体的文档解析接口可以参见com.pyramidframework.simpleconfig包的实现。
+	<br>
+	配置信息的配置方式是：
+	&nbsp;&lt;?xml version="1.0" encoding="UTF-8"?&gt;<br>
+	&nbsp;&nbsp;&lt;ci:domains<br>
+	&nbsp;&nbsp;	xmlns:ci="http://www.pyramidframework.com/2008/ConfigurationInheritance"&nbsp;&gt;<br>
+	&nbsp;&nbsp;&nbsp;&lt;ci:domain ci:functionPath="/" ci:inheriteFrom="default"&nbsp;&gt;<br>
+	&nbsp;&nbsp;&nbsp;&nbsp;&lt;configuration&gt;<br>
+	&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;item name="msg"&gt;the first message&lt;/item&gt;<br>
+	&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;item name="people_name"&gt;zhang doudou&lt;/item&gt;<br>
+	&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;item name="people_sex"&gt;male&lt;/item&gt;<br>
+	&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;ci:template ci:id="root" ci:pattern="/([a-zA-Z]+)/([a-zA-Z]+)"&gt;<br>
+	&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;item name="first_name"&gt;{{root.group(1)}}&lt;/item&gt;<br>
+	&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;item name="second_name"&gt;{{root.group(2)}}&lt;/item&gt;<br>
+	&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;/ci:template&gt;<br>
+	&nbsp;&nbsp;&nbsp;&nbsp;&lt;/configuration&gt;<br>
+	&nbsp;&nbsp;&nbsp;&lt;/ci:domain&gt;<br>
+	&nbsp;&nbsp;&nbsp;<br>
+	&nbsp;&nbsp;&nbsp;&lt;ci:domain ci:functionPath="/haha"&nbsp;&nbsp;&gt;<br>
+	&nbsp;&nbsp;&nbsp;&nbsp;&lt;configuration&gt;<br>
+	&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;item name="msg"&gt;the second message&lt;/item&gt;<br>
+	&nbsp;&nbsp;&nbsp;&nbsp;&lt;/configuration&gt;<br>
+	&nbsp;&nbsp;&nbsp;&lt;/ci:domain&gt;<br>
+	&nbsp;&nbsp;&nbsp;<br>
+	&nbsp;&nbsp;&nbsp;&lt;ci:domain ci:functionPath="/test/testBeanReader"&nbsp;&nbsp;&gt;<br>
+	&nbsp;&nbsp;&nbsp;&nbsp;&lt;configuration&gt;<br>
+	&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;item name="person"&gt;<br>
+	&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;person&gt;<br>
+	&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;name&gt;DouMiao Zhang&lt;/name&gt;<br>
+	&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;sex&gt;Female&lt;/sex&gt;<br>
+	&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;/person&gt;<br>
+	&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;/item&gt;<br>
+	&nbsp;&nbsp;&nbsp;&nbsp;&lt;/configuration&gt;<br>
+	&nbsp;&nbsp;&nbsp;&lt;/ci:domain&gt;<br>
+	&nbsp;&nbsp;&lt;/ci:domains&gt;<br>
+	每个目录下最多只能有一个配置文件，每个文件里可以配置多个节点，包含本级目录和下级目录的节点。配置文件以ci:domains做为根元素，
+	ci:domain元素中定义每个配置信息域的信息，其ci:functionPath属性其功能路径，ci:configType声明配置信息类型。如果上级没有配置信息，则本级
+	则按照根本文档来解析，否则本级按照增量文档来解析。ci:domain内的节点应该是实际的配置信息的节点，其运行时将取ci:domain的第一个子节点转换成一个
+	xml document提供给解析器解析。ci:template元素只是一个占位符，用于提供给脚本解析的元素，在运行时会被剔除。脚本使用{{和}}包括起来。系统默认内嵌的是OGNL的解析器。
+	
+</body>
+</html>
