@@ -105,8 +105,12 @@ public class ConfigContainer implements Cloneable {
 		return false;
 	}
 	
-	
-	void setData(String name,Object data){
+	/**
+	 * 有新配置项时，如果有旧配置项，则对其进行组合配置
+	 * @param name
+	 * @param data
+	 */
+	protected void addData(String name,Object data){
 		Object o = getData(name);
 		if (o == null){
 			datas.put(name, data);
@@ -124,6 +128,15 @@ public class ConfigContainer implements Cloneable {
 				datas.put(name, data);
 			}
 		}
+	}
+	
+	/**
+	 * 用新的数据替换掉旧的数据
+	 * @param name
+	 * @param data
+	 */
+	public void setData(String name,Object data){
+		datas.put(name, data);
 	}
 	
 	void removeData(String name){

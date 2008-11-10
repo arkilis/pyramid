@@ -88,15 +88,15 @@ public class XmlDocument extends XmlNode implements SDIDocument {
 
 				// 先删掉旧有的属性，然后在合并新的属性
 				Attribute newAttribute = null;
-				
-				//需要看看替换的对象是不是Attribute
-				if(xn.rootNode instanceof Attribute){
+
+				// 需要看看替换的对象是不是Attribute
+				if (xn.rootNode instanceof Attribute) {
 					newAttribute = (Attribute) xn.rootNode;
-				}else{
-					newAttribute = XmlDocument.creatXmlAttribute(attribute.getName(), xn.getTextValue(),attribute.getNamespace());
+				} else {
+					newAttribute = XmlDocument.creatXmlAttribute(attribute.getName(), xn.getTextValue(), attribute.getNamespace());
 				}
-				
-				Dom4JHelper.replaceAttribute(element,newAttribute);
+
+				Dom4JHelper.replaceAttribute(element, newAttribute);
 
 			} else if (node.rootNode instanceof Element) {
 
@@ -152,13 +152,13 @@ public class XmlDocument extends XmlNode implements SDIDocument {
 
 			// 如果目标是属性，则其表达式的最终结果必须为属性
 			if (node.rootNode instanceof Element) {
-				if (sn.rootNode instanceof Attribute) {//是属性时必须进行合并操作	
+				if (sn.rootNode instanceof Attribute) {// 是属性时必须进行合并操作
 					Dom4JHelper.replaceAttribute((Element) node.rootNode, (Attribute) sn.rootNode);
-					
+
 				} else {
 					((Element) node.rootNode).add(sn.rootNode);
 				}
-			}//忽略其他类型的节点，无法为其添加子节点
+			}// 忽略其他类型的节点，无法为其添加子节点
 		}
 	}
 
@@ -485,17 +485,18 @@ public class XmlDocument extends XmlNode implements SDIDocument {
 	 * @throws Exception
 	 */
 	protected InputStream openResource(String resourcePath) throws Exception {
-
+		
 		// 是不是网络资源，判断包含不包含://
 		if (resourcePath.indexOf("://") > 0) {
 			return (new URL(resourcePath)).openStream();
 		}
 
-		InputStream inputStream = this.getClass().getResourceAsStream(resourcePath);
+		InputStream inputStream = getClass().getResourceAsStream(resourcePath);
 
 		// 如果不是资源，则是文件系统系统
 		if (inputStream == null) {
-			return new FileInputStream(resourcePath);
+			File file = new File(resourcePath);
+			return new FileInputStream(file);
 		} else {
 			return inputStream;
 		}

@@ -201,10 +201,10 @@ public class SimpleConfigManager extends TypedManager {
 							throw new NullPointerException("You must define a XmlBeanReader instance form an custom XML!");
 						} else {
 							XmlNode n = new XmlNode((Element) child.get(0), childOfRoot.getNamespaces());
-							data.setData(name, beanReader.readFromXmlElement(n));
+							data.addData(name, beanReader.readFromXmlElement(n));
 						}
 					} else {
-						data.setData(name, e.getText());
+						data.addData(name, e.getText());
 					}
 				}
 			} else if (node instanceof Attribute) { // 属性，则需要看是不是指定的Name，只支持删除
@@ -245,10 +245,10 @@ public class SimpleConfigManager extends TypedManager {
 						throw new NullPointerException("You must define a XmlBeanReader instance form an custom XML!");
 					} else {
 						XmlNode n = new XmlNode((Element) child.get(0), configDocument.getNamespaces());
-						data.setData(name, beanReader.readFromXmlElement(n));
+						data.addData(name, beanReader.readFromXmlElement(n));
 					}
 				} else {
-					data.setData(name, e.getText());
+					data.addData(name, e.getText());
 				}
 			}
 
