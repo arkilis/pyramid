@@ -149,11 +149,13 @@ public class TypedManager extends ConfigurationManager {
 	protected ConfigServiceProvider getDataProvider() {
 		if (_providerInstance == null) {
 			synchronized (this) {
-				_providerInstance = new ConfigDamainTree(this) {
-					protected Map getTypedContainer(String type) {
-						return this.rootContainerMap;
-					}
-				};
+				if (_providerInstance == null) {
+					_providerInstance = new ConfigDamainTree(this) {
+						protected Map getTypedContainer(String type) {
+							return this.rootContainerMap;
+						}
+					};
+				}
 			}
 		}
 

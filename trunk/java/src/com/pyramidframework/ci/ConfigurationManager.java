@@ -7,12 +7,38 @@ import org.dom4j.Namespace;
 
 import com.pyramidframework.ci.impl.ConfigDamainTree;
 import com.pyramidframework.ci.impl.ConfigServiceProvider;
+import com.pyramidframework.script.CompilableScriptEngine;
+import com.pyramidframework.script.MVELScriptEngine;
 
 public class ConfigurationManager {
 	protected Map instanceParsers = null;
 
 	protected Namespace namespace = new Namespace(DEFAULT_NAMESPACE_PREFIX, DEFAULT_NAMESPACE_URI);
 	protected ConfigServiceProvider _providerInstance;
+	protected CompilableScriptEngine scriptEngine = new MVELScriptEngine();; // 执行脚本的引擎实现
+
+	/**
+	 * 设置默认的脚本引擎的实现，该实现应该是实现{@link CompilableScriptEngine}接口
+	 * 
+	 * @param scriptEngine
+	 */
+	public void setScriptEngine(CompilableScriptEngine scriptEngine) {
+
+		if (scriptEngine != null) {
+			this.scriptEngine = scriptEngine;
+		} else {
+			throw new IllegalArgumentException("scriptEngine can not be null!");
+		}
+	}
+
+	/**
+	 * 获取内部的脚本引擎的实现类，默认是{@link MVELScriptEngine}实现
+	 * 
+	 * @return
+	 */
+	public CompilableScriptEngine getScriptEngine() {
+		return scriptEngine;
+	}
 
 	/**
 	 * 得到配置信息的作用域
@@ -37,10 +63,12 @@ public class ConfigurationManager {
 		}
 
 		ConfigDomain domain = getDataProvider().getDomain(functionPath, configType, parser);
-
-		if (domain == null) {
+		
+		//在上级没有配置下级有配置时，需要返回NULL
+		/*if (domain == null) {
 			throw new NullPointerException("Can not find any configuration!");
-		}
+		}*/
+		
 		return domain;
 	}
 
@@ -117,13 +145,12 @@ public class ConfigurationManager {
 	 * @param documentParser
 	 */
 	public void addLocalParser(String configType, DefaultDocumentParser documentParser) {
-		if(this.instanceParsers == null){
+		if (this.instanceParsers == null) {
 			this.instanceParsers = new HashMap();
 		}
 		this.instanceParsers.put(configType, documentParser);
 
 	}
-
 
 	/**
 	 * 设置全局的配置文件类型对应的解析器
@@ -170,8 +197,6 @@ public class ConfigurationManager {
 	/* 内部设置的配置文件对应的文件解析器 */
 	private static HashMap type_parser_map = new HashMap();
 
-
-
 	/**
 	 * ConfigurationInheritance模块的默认URL
 	 */
@@ -192,8 +217,6 @@ public class ConfigurationManager {
 	 */
 	public static final String FUNCTION_PATH_SEPARATOR = "/";
 
-	
-
 	/**
 	 * 判断指定的功能路径是不是符合要求的路径的表达形式：
 	 * 以'/'开始，不能以有两个'/'以上的连在一起，并且只能包含字符、数字和'/'，NULL表示默认配置
@@ -201,7 +224,7 @@ public class ConfigurationManager {
 	 * @param functionPath
 	 * @return
 	 */
-	public static  boolean isValidFunctionPath(String functionPath) {
+	public static boolean isValidFunctionPath(String functionPath) {
 		if (functionPath == null || ConfigurationManager.INHERITE_TYPE_CONSTANTS[3].equals(functionPath)) {// 表示默认配置
 			return true;
 		}
@@ -225,7 +248,7 @@ public class ConfigurationManager {
 	 *            符合函数isCorrectFunctionPath校验的功能路径
 	 * @return NULL or parent path
 	 */
-	public static  String getDefaultParentPath(String functionPath) {
+	public static String getDefaultParentPath(String functionPath) {
 		char c = FUNCTION_PATH_SEPARATOR.charAt(0);
 
 		if (functionPath == null || functionPath.length() < 2) {

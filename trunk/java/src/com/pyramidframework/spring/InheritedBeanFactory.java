@@ -1,5 +1,9 @@
 package com.pyramidframework.spring;
 
+import org.springframework.beans.factory.BeanDefinitionStoreException;
+import org.springframework.beans.factory.BeanFactory;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
@@ -10,37 +14,100 @@ import org.springframework.beans.factory.support.DefaultListableBeanFactory;
  * 
  * @author Mikab Peng
  */
-public class InheritedBeanFactory extends DefaultListableBeanFactory {
+class InheritedBeanFactory extends DefaultListableBeanFactory {
 
 	/**
-	 * 从上级的BeanFactory进行初始化。将上级的全部的BeanDefinition全部拷贝到本类中。
-	 * 只拷贝BeanDefinitions和bean Alias，其他的配置信息
-	 * 可以使用{@link DefaultListableBeanFactory.copyConfigurationFrom}方法手工进行复制。
 	 * 
-	 * @param parent
-	 *            代入了实际模板的上级路径的BeanFactory实例
+	 * @param directParent
+	 *            从模板解析而的来的定义
+	 * @param parentFactory
+	 *            从配置信息树得到父级
 	 */
-	public InheritedBeanFactory(BeanDefinitionRegistry parent) {
-		if (parent != null) {
-			// 拷贝beanDefinition
-			String beanNames[] = parent.getBeanDefinitionNames();
-			for (int i = 0; i < beanNames.length; i++) {
-				registerBeanDefinition(beanNames[i], parent.getBeanDefinition(beanNames[i]));
+	public InheritedBeanFactory(BeanDefinitionRegistry directParent, BeanFactory parentFactory) {
+		if (parentFactory != null) {
+			setParentBeanFactory(parentFactory);
+		}
 
-				// //拷贝beanAlias
-				String beanAlias[] = parent.getAliases(beanNames[i]);
-				for (int j = 0; j < beanAlias.length; j++) {
-					registerAlias(beanNames[i], beanAlias[j]);
+		if (directParent == null) {
+			return;
+		}
+
+		// 拷贝其他的配置信息
+		if (directParent instanceof ConfigurableBeanFactory) {
+			copyConfigurationFrom((ConfigurableBeanFactory) directParent);
+		}
+
+		// 拷贝bean定义
+		String[] beans = directParent.getBeanDefinitionNames();
+		for (int i = 0; i < beans.length; i++) {
+			registerBeanDefinition(beans[i], directParent.getBeanDefinition(beans[i]));
+
+			String[] alias = directParent.getAliases(beans[i]);
+			if (alias != null) {
+				for (int j = 0; j < alias.length; j++) {
+					registerAlias(beans[i], alias[j]);
 				}
 			}
 		}
-		
-		//拷贝其他的配置信息
-		if (parent instanceof ConfigurableBeanFactory){
-			copyConfigurationFrom((ConfigurableBeanFactory)parent);
+	}
+
+	/**
+	 * 如果包含则不再注册
+	 */
+	public void registerAlias(String name, String alias) {
+		String aliases[] = getAliases(name);
+
+		if (aliases != null) {
+			for (int i = 0; i < aliases.length; i++) {
+				if (aliases[i].equals(alias)) {// 找到就不再注册
+					return;
+				}
+			}
+		}
+
+		super.registerAlias(name, alias);
+	}
+
+	/**
+	 * 如果上级包含一样的，则不再注册
+	 * TODO:如果是本级强行配置的，则认为是新的配置
+	 */
+	public void registerBeanDefinition(String beanName, BeanDefinition beanDefinition) throws BeanDefinitionStoreException {
+		BeanDefinition definition = null;
+		try {
+			definition = getBeanDefinition(beanName);
+		} catch (NoSuchBeanDefinitionException e) {
+			definition = null;
+		}
+
+		if (!beanDefinition.equals(definition)) {
+			super.registerBeanDefinition(beanName, beanDefinition);
 		}
 	}
-	
-	
+
+	/**
+	 * 找到本级查找不到时到父工厂查找
+	 */
+	public BeanDefinition getBeanDefinition(String beanName) throws NoSuchBeanDefinitionException {
+		BeanDefinition definition = null;
+
+		try {
+			definition = super.getBeanDefinition(beanName);
+		} catch (NoSuchBeanDefinitionException e) {
+			// DO NOTHING
+			definition = null;
+		}
+
+		if (definition == null) {
+			BeanFactory parentFactory = getParentBeanFactory();
+			if (parentFactory != null) {// 如果本级没找到，并且parentFActory也不为NULL的话
+				InheritedBeanFactory parentInherited = (InheritedBeanFactory) parentFactory;
+				return parentInherited.getBeanDefinition(beanName);
+			}
+			throw new NoSuchBeanDefinitionException(beanName);
+		} else {
+			return definition;
+		}
+	}
 
 }
