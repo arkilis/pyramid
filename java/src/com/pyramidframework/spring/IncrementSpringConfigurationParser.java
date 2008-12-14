@@ -69,4 +69,17 @@ public class IncrementSpringConfigurationParser extends SpringConfigurationParse
 
 	}
 
+	/**
+	 * 如果是为本级配置的数据，则修改之
+	 */
+	protected Object createDomainFactory(InheritedBeanFactory directFactory, ConfigDomain thisDomain) {
+		if (thisDomain == null) {
+			return null;
+		}
+
+		InheritedBeanFactory factory = (InheritedBeanFactory) super.createDomainFactory(directFactory, thisDomain);
+
+		return factory;
+	}
+
 }

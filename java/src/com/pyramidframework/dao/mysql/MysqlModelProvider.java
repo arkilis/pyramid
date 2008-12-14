@@ -21,7 +21,6 @@ public class MysqlModelProvider implements ModelProvider{
 	private ThreadLocal conn = new ThreadLocal();// “¿¿µ◊¢»Î
 
 	public DataModel getModelByName(String name) {
-
 		return getModelFromDB(name);
 	}
 	

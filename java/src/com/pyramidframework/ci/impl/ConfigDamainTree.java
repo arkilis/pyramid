@@ -37,8 +37,8 @@ public class ConfigDamainTree implements ConfigServiceProvider {
 	 * 
 	 */
 	public ConfigDomain getDomain(String functionPath, String type, ConfigDocumentParser parser) {
-		//System.err.println("getDomain" + functionPath);
-		
+		// System.err.println("getDomain" + functionPath);
+
 		Map configTree = getTypedContainer(type);
 
 		ConfigDomainImpl configDomain = (ConfigDomainImpl) configTree.get(functionPath);
@@ -122,7 +122,7 @@ public class ConfigDamainTree implements ConfigServiceProvider {
 
 		// 先添加根目录的数据
 		checkFileExist(configFiles, parser.getConfigFileName(separator, configType));
-		
+
 		// 依次到各个目录下找对应的文件
 		StringBuffer path = (new StringBuffer(oldPath.length())).append(separator);
 		while (tokenizer.hasMoreElements()) {
@@ -133,9 +133,7 @@ public class ConfigDamainTree implements ConfigServiceProvider {
 				checkFileExist(configFiles, fileName);
 			}
 		}
-		
-		//System.err.println(configFiles);
-		
+
 		// 靠近具体功能节点的地方开始向上查找，直到找到配置信息为止
 		for (int i = configFiles.size() - 1; i >= 0; i--) {
 			String resourcePath = (String) configFiles.get(i);
@@ -143,13 +141,11 @@ public class ConfigDamainTree implements ConfigServiceProvider {
 			try {
 				XmlDocument d = new XmlDocument(resourcePath);
 				node = searchNode(d, oldPath, targetPath, configType, parser);
-				//System.err.println(d.getDom4JNode().asXML() + 2 + oldPath);
 				if (node != null) {
 					return node;
 				}
 			} catch (Exception e) {
 				throw new RuntimeException(e);
-				// TODO:handle exception
 			}
 		}
 
@@ -161,10 +157,10 @@ public class ConfigDamainTree implements ConfigServiceProvider {
 	 * @param fileName
 	 */
 	protected void checkFileExist(ArrayList configFiles, String fileName) {
-		//System.err.println(fileName);
-		
+		// System.err.println(fileName);
+
 		File file = new File(fileName);
-		if ((this.getClass().getResourceAsStream(fileName) != null || file.exists()  )&& !configFiles.contains(fileName)) {
+		if ((this.getClass().getResourceAsStream(fileName) != null || file.exists()) && !configFiles.contains(fileName)) {
 			configFiles.add(fileName);
 		}
 	}
@@ -214,7 +210,7 @@ public class ConfigDamainTree implements ConfigServiceProvider {
 			ConfigDomainImpl d = lookupAndConstructDomain(functionPath, configType, parser, targetPath);
 
 			// 需要构建一个新的配置域
-			if (d == null){
+			if (d == null) {
 				return null;
 			}
 			return constructDomain(rootPath, configType, d.getConfigData());
@@ -275,7 +271,7 @@ public class ConfigDamainTree implements ConfigServiceProvider {
 	public ConfigDamainTree(ConfigurationManager manager) {
 		this.managerInstance = manager;
 
-		this.scriptEngine =  manager.getScriptEngine();
+		this.scriptEngine = manager.getScriptEngine();
 
 	}
 

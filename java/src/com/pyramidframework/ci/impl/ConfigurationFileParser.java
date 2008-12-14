@@ -45,7 +45,8 @@ public class ConfigurationFileParser {
 		this.parser = parser;
 
 		tree = instance;
-		//DomainCachedAttribute = new QName("cached", instance.managerInstance.getNamespace());
+		// DomainCachedAttribute = new QName("cached",
+		// instance.managerInstance.getNamespace());
 		DomianInheriteFromAttribute = new QName("inheriteFrom", instance.managerInstance.getNamespace());
 
 		xmlDocument = parseDomainInfo(dataNode, domain);
@@ -62,7 +63,7 @@ public class ConfigurationFileParser {
 
 		try {
 			Element element = (Element) dataNode.getDom4JNode();
-			
+
 			String parentPath = null;
 			String inheriteFrom = element.attributeValue(DomianInheriteFromAttribute);
 
@@ -100,7 +101,6 @@ public class ConfigurationFileParser {
 
 		} catch (Exception e) {
 			throw new RuntimeException(e);
-			// TODO: handle exception
 		}
 		return null;
 	}
@@ -178,7 +178,6 @@ public class ConfigurationFileParser {
 
 					}
 				} catch (Exception e) {
-					// TODO: handle exception
 					throw new RuntimeException(e);
 				}
 			}

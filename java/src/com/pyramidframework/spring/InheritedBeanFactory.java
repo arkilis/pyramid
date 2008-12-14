@@ -1,12 +1,17 @@
 package com.pyramidframework.spring;
 
+import org.springframework.beans.BeanWrapper;
+import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.BeanDefinitionStoreException;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
+import org.springframework.beans.factory.support.AbstractBeanDefinition;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
+import org.springframework.web.context.request.RequestScope;
+import org.springframework.web.context.request.SessionScope;
 
 /**
  * 每个功能路径的bean Factory的实现。
@@ -15,6 +20,8 @@ import org.springframework.beans.factory.support.DefaultListableBeanFactory;
  * @author Mikab Peng
  */
 class InheritedBeanFactory extends DefaultListableBeanFactory {
+
+	ThreadLocal rootBeanFactory = new ThreadLocal();
 
 	/**
 	 * 
@@ -27,6 +34,10 @@ class InheritedBeanFactory extends DefaultListableBeanFactory {
 		if (parentFactory != null) {
 			setParentBeanFactory(parentFactory);
 		}
+
+		registerScope("request", new RequestScope());
+		registerScope("session", new SessionScope(false));
+		registerScope("globalSession", new SessionScope(true));
 
 		if (directParent == null) {
 			return;
@@ -69,11 +80,11 @@ class InheritedBeanFactory extends DefaultListableBeanFactory {
 	}
 
 	/**
-	 * 如果上级包含一样的，则不再注册
-	 * TODO:如果是本级强行配置的，则认为是新的配置
+	 * 如果上级包含一样的，则不再注册 TODO:如果是本级强行配置的，则认为是新的配置
 	 */
 	public void registerBeanDefinition(String beanName, BeanDefinition beanDefinition) throws BeanDefinitionStoreException {
 		BeanDefinition definition = null;
+
 		try {
 			definition = getBeanDefinition(beanName);
 		} catch (NoSuchBeanDefinitionException e) {
@@ -94,7 +105,6 @@ class InheritedBeanFactory extends DefaultListableBeanFactory {
 		try {
 			definition = super.getBeanDefinition(beanName);
 		} catch (NoSuchBeanDefinitionException e) {
-			// DO NOTHING
 			definition = null;
 		}
 
@@ -110,4 +120,30 @@ class InheritedBeanFactory extends DefaultListableBeanFactory {
 		}
 	}
 
+	public Object getBean(String name, Class requiredType, Object[] args) throws BeansException {
+		boolean startAtThis = false;
+		try {
+			if (rootBeanFactory.get() == null) {
+				rootBeanFactory.set(this);
+				startAtThis = true;
+			}
+			return super.getBean(name, requiredType, args);
+		} finally {
+			if (startAtThis) {
+				rootBeanFactory.set(null);
+			}
+		}
+	}
+
+	/**
+	 * 确保在最开始开始初始化
+	 */
+	protected void populateBean(String beanName, AbstractBeanDefinition mbd, BeanWrapper bw) {
+		InheritedBeanFactory rootFactory = (InheritedBeanFactory) rootBeanFactory.get();
+		if (this == rootFactory) {
+			super.populateBean(beanName, mbd, bw);
+		} else {
+			rootFactory.populateBean(beanName, mbd, bw);
+		}
+	}
 }
