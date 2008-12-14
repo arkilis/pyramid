@@ -2,8 +2,9 @@ package com.pyramidframework.spring;
 
 import java.util.ArrayList;
 
-import org.springframework.beans.factory.BeanFactory;
-import org.springframework.web.context.request.RequestAttributes;
+import javax.servlet.http.HttpServletRequest;
+
+import org.springframework.beans.factory.config.AutowireCapableBeanFactory;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -20,7 +21,12 @@ import com.pyramidframework.ci.TypedManager;
  */
 public class SpringFactory {
 
-	public static String defaultType = "spring"; // 默认的配置信息的类型
+	// 默认的实例
+	static SpringFactory defaultInstance = new SpringFactory();
+
+	public static final String defaultType = "spring"; // 默认的配置信息的类型
+	/** 配置文件默认存在的目录 */
+	public static final String DEFAULT_CONFIG_LOCATION_PREFIX = "/config";
 
 	// 不想改动CI的代码，只有加个这个东西来获取的初始的访问路径
 	ThreadLocal currentPathStack = new ThreadLocal();
@@ -72,7 +78,7 @@ public class SpringFactory {
 	 *            对应功能的功能路径
 	 * @return InheritedBeanFactory的实例
 	 */
-	public BeanFactory getBeanFactory(String functionPath) {
+	public AutowireCapableBeanFactory getBeanFactory(String functionPath) {
 		try {
 			currentPathStack.set(new ArrayList());
 			return (InheritedBeanFactory) manager.getConfigData(functionPath);
@@ -81,46 +87,19 @@ public class SpringFactory {
 		}
 	}
 
-	/** 配置文件默认存在的目录 */
-	public static final String DEFAULT_CONFIG_LOCATION_PREFIX = "/config";
-
 	/**
-	 * 默认在request中所存放的位置
-	 */
-	public static String ROOT_REQUEST_CONTEXT_ATTRIBUTE = SpringFactory.class.getName() + ".ROOT";
-
-	/**
-	 * 必须使用ServletRequest使用的场合,只能在WEB项目中使用此方法。 适应于配置信息继承的应用程序的上下文。
-	 * 其自动根据应用程序的serverlet的上下文获取对应的functionpath。 需要与{@link RequestContextHolder}配合,因此部署时需要{@link RequestContextListener)
+	 * 得到指定的功能路径的beanfactory，ruquest指定本次訪問的URL，并且對web相关的上下文进行初始化。 在web环境下应该使用此方法
 	 * 
-	 * @return
+	 * @param functionPath
+	 *            对应功能的功能路径
+	 * @param request
+	 *            本次访问的请求,用于初始化RequestContextHolder，为session和request范围做支持
+	 * @return InheritedBeanFactory的实例
 	 */
-	public BeanFactory getRequestContextBeanFactory() {
-		RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
+	public AutowireCapableBeanFactory getBeanFactory(String functionPath, HttpServletRequest request) {
+		RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
 
-		InheritedBeanFactory context = (InheritedBeanFactory) attributes.getAttribute(ROOT_REQUEST_CONTEXT_ATTRIBUTE, RequestAttributes.SCOPE_REQUEST);
-		if (context == null) {
-			context = createRequestContext(attributes);
-		}
-		return context;
-
-	}
-
-	/**
-	 * 创建与request相关的上下文
-	 * 
-	 * @param attributes
-	 * @return
-	 */
-	protected InheritedBeanFactory createRequestContext(RequestAttributes attributes) {
-		InheritedBeanFactory context;
-		// 必须使用这个场合
-		ServletRequestAttributes servleRequest = (ServletRequestAttributes) attributes;
-		String functionPath = servleRequest.getRequest().getRequestURI();
-
-		context = (InheritedBeanFactory) getBeanFactory(functionPath);
-		attributes.setAttribute(ROOT_REQUEST_CONTEXT_ATTRIBUTE, context, RequestAttributes.SCOPE_REQUEST);
-		return context;
+		return getBeanFactory(functionPath);
 	}
 
 	/**
@@ -183,4 +162,16 @@ public class SpringFactory {
 			}
 		}
 	};
+
+	public static SpringFactory getDefault() {
+		return defaultInstance;
+	}
+
+	public static SpringFactory getDefaultInstance() {
+		return defaultInstance;
+	}
+
+	public static void setDefault(SpringFactory defaultInstance) {
+		SpringFactory.defaultInstance = defaultInstance;
+	}
 }

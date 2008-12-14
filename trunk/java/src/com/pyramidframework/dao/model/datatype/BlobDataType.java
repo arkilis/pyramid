@@ -33,6 +33,9 @@ public class BlobDataType extends DataType {
 
 		try {
 			Blob b = resultSet.getBlob(index);
+			if (b == null){
+				return null;
+			}
 			return blob2ByteArray(b);
 
 		} catch (Exception e) {

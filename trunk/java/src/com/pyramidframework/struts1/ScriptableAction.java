@@ -1,12 +1,11 @@
-package com.pyramidframework.struts2;
+package com.pyramidframework.struts1;
 
-import java.util.HashMap;
-import java.util.List;
+import java.sql.SQLException;
 import java.util.Map;
 
 import org.springframework.beans.factory.BeanFactory;
 
-import com.pyramidframework.dao.VOFactory;
+import com.pyramidframework.jdbc.ThreadConnectionManager;
 import com.pyramidframework.script.CompilableScriptEngine;
 import com.pyramidframework.script.MVELScriptEngine;
 import com.pyramidframework.simpleconfig.ConfigContainer;
@@ -25,43 +24,7 @@ import com.pyramidframework.spring.SpringFactory;
  * @author Mikab Peng
  * 
  */
-public class Struts2ScriptableAction {
-
-	private HashMap modelDatas = new HashMap();
-	protected VOFactory voFactory = null;
-	protected List queryResult = null;
-
-	/**
-	 * 得到指定类型的数据名称
-	 * 
-	 * @param model
-	 * @return
-	 */
-	public Object getModel(String model) {
-		
-		Object object = modelDatas.get(model);
-		if (object == null) {
-			if(voFactory == null){
-				String functionPath = Struts2RequestHelper.getCurrentRequestURI();
-				BeanFactory beanFactory = springFactory.getBeanFactory(functionPath, Struts2RequestHelper.getCurrentRequest());
-				voFactory = (VOFactory)beanFactory.getBean(VOFactoryBean);
-			}
-			object = voFactory.getValueObject(model);
-			modelDatas.put(model, object);
-		}
-		
-		return object;
-	}
-
-	/**
-	 * 设置模型对应类型
-	 * 
-	 * @param model
-	 * @param modelData
-	 */
-	public void setModel(String model, Object modelData) {
-		modelDatas.put(model, modelData);
-	}
+public class ScriptableAction {
 
 	/**
 	 * 通过配置的脚本和脚本引擎去执行，并得到最终的结果
@@ -71,9 +34,9 @@ public class Struts2ScriptableAction {
 	 */
 	public String execute() throws Exception {
 
-		String functionPath = Struts2RequestHelper.getCurrentRequestURI();
-		
-		return executeWithFunctionPath( functionPath);
+		String functionPath = ActionContext.getCurrent().getPath();
+
+		return executeWithFunctionPath(functionPath);
 
 	}
 
@@ -84,10 +47,9 @@ public class Struts2ScriptableAction {
 	 * @throws IllegalAccessException
 	 * @throws ClassNotFoundException
 	 */
-	public String executeWithFunctionPath( String functionPath) throws InstantiationException, IllegalAccessException,
-			ClassNotFoundException {
+	public String executeWithFunctionPath(String functionPath) throws InstantiationException, IllegalAccessException, ClassNotFoundException {
 		ConfigContainer container = (ConfigContainer) configManager.getConfigData(functionPath);
-		BeanFactory beanFactory = springFactory.getBeanFactory(functionPath, Struts2RequestHelper.getCurrentRequest());
+		BeanFactory beanFactory = ActionContext.getCurrent().getBeanFactory();
 
 		Map scriptContext = initScriptContext(beanFactory, container, functionPath);
 
@@ -100,7 +62,6 @@ public class Struts2ScriptableAction {
 
 		// 初始化脚本和脚本对象
 		if (script instanceof String) {// 未执行过初始化
-
 			String scriptEngineClassName = container.getString(scriptEngineItemName);
 			if (scriptEngineClassName == null || scriptEngineClassName.length() < 1) {
 				scriptEngine = (CompilableScriptEngine) defaultScriptEngine.newInstance();
@@ -127,7 +88,22 @@ public class Struts2ScriptableAction {
 	 */
 	protected Object runScript(BeanFactory beanFactory, Map scriptContext, Object script, CompilableScriptEngine scriptEngine) {
 
-		return scriptEngine.runScript(script, scriptContext);
+		ThreadConnectionManager manager = (ThreadConnectionManager) beanFactory.getBean(connectionManagerBean);
+		try {
+			manager.openConnection();
+
+			return scriptEngine.runScript(script, scriptContext);
+
+		} catch (RuntimeException e) {
+			try {
+				manager.getCurrent().rollback();
+			} catch (SQLException e1) {
+			}
+			throw e;
+		} finally {
+			manager.closeConnection();
+		}
+
 	}
 
 	/**
@@ -140,34 +116,26 @@ public class Struts2ScriptableAction {
 		// 初始化脚本的相关变量
 		scriptContext.put("functionPath", functionPath);
 		scriptContext.put("beanFactory", beanFactory);
-		scriptContext.put("request", Struts2RequestHelper.getCurrentRequest());
-		scriptContext.put("response", Struts2RequestHelper.getCurrentResponse());
+		scriptContext.put("request", ActionContext.getCurrent().getRequest());
+		scriptContext.put("response", ActionContext.getCurrent().getResponse());
 
 		// config的实例
 		scriptContext.put("config", container);
-		
+
 		// action的实例
 		scriptContext.put("action", this);
+		scriptContext.put("formBean", ActionContext.getCurrent().getFormBean());
 
 		return scriptContext;
-	}
-	
-	public List getQueryResult() {
-		return queryResult;
-	}
-
-	public void setQueryResult(List queryResult) {
-		this.queryResult = queryResult;
 	}
 
 	/**
 	 * 默认的属性值
 	 */
 	static final String DEFAULT_ROOT_DIRECTORY = SpringFactory.DEFAULT_CONFIG_LOCATION_PREFIX;
-	static SpringFactory springFactory = SpringFactory.getDefault();
 	static SimpleConfigManager configManager = new SimpleConfigManager("config", DEFAULT_ROOT_DIRECTORY);
 	static Class defaultScriptEngine = MVELScriptEngine.class;
 	static String scriptItemName = "script";
 	static String scriptEngineItemName = "scriptEngine";
-	static String VOFactoryBean = "voFactory";
+	String connectionManagerBean = "connectionManager";
 }

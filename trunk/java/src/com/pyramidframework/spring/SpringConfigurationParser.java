@@ -27,7 +27,8 @@ public class SpringConfigurationParser implements ConfigDocumentParser {
 	 * 
 	 * @param rootDirectory
 	 *            存放配置文件的根目录
-	 * @param instance SpringFactory的实例
+	 * @param instance
+	 *            SpringFactory的实例
 	 */
 	public SpringConfigurationParser(String rootDirectory, SpringFactory instance) {
 		// 去掉最后的那个/
@@ -49,10 +50,9 @@ public class SpringConfigurationParser implements ConfigDocumentParser {
 	public Object parseConfigDocument(ConfigDomain domain, XmlDocument configDocument) {
 		Object object = domain.getConfigData();
 		if (object == null) {
-			object = createDomainFactory(null,domain);
+			object = createDomainFactory(null, domain);
 		}
-		
-		
+
 		InheritedBeanFactory factory = (InheritedBeanFactory) object;
 
 		// 装在数据
@@ -68,38 +68,38 @@ public class SpringConfigurationParser implements ConfigDocumentParser {
 
 	/**
 	 * 创建指定域的beanfactory的实例
+	 * 
 	 * @param thisDomain
 	 * @return
 	 */
 	protected Object createDomainFactory(InheritedBeanFactory directFactory, ConfigDomain thisDomain) {
-		if (thisDomain == null){
+		if (thisDomain == null) {
 			return null;
 		}
 		Object object = null;
 		String parentPath = ((ConfigDomainImpl) thisDomain).getParentPath();
-		//System.err.println("parentPath" + parentPath);
-		
+		// System.err.println("parentPath" + parentPath);
+
 		if (parentPath != null && !"".equals(parentPath)) {
 			ConfigDomain parentDomain = factoryInstance.manager.getConfigDomain(parentPath);
 			BeanFactory beanFactory = null;
-			
-			//parentDomain可能是NULL
-			if (parentDomain != null){
-				beanFactory =  (BeanFactory) parentDomain.getConfigData();
+
+			// parentDomain可能是NULL
+			if (parentDomain != null) {
+				beanFactory = (BeanFactory) parentDomain.getConfigData();
 			}
 			object = new InheritedBeanFactory(directFactory, beanFactory);
-		}else{
-			
-			//当和当前访问的资源路径不一致且parentPath为NULL，需要获取同类型的配置信息,主要是用作获取其parentFactory
-			if(!thisDomain.getTargetPath().equals(factoryInstance.getCurrentTargetPath())){
+		} else {
+
+			// 当和当前访问的资源路径不一致且parentPath为NULL，需要获取同类型的配置信息,主要是用作获取其parentFactory
+			if (!thisDomain.getTargetPath().equals(factoryInstance.getCurrentTargetPath())) {
 				ConfigDomain domain = factoryInstance.manager.getConfigDomain(thisDomain.getTargetPath());
-				object = new InheritedBeanFactory(directFactory, (BeanFactory)domain.getConfigData());
-			}else{
+				object = new InheritedBeanFactory(directFactory, (BeanFactory) domain.getConfigData());
+			} else {
 				object = new InheritedBeanFactory(directFactory, null);
 			}
 		}
 
-		
 		return object;
 	}
 
@@ -107,7 +107,7 @@ public class SpringConfigurationParser implements ConfigDocumentParser {
 	 * DO Nothing
 	 */
 	public void InitTemplateContext(Map templateContext) {
-
+		templateContext.put("classUtil", SpringClassUtil.getInstance());//可在脚本中检查是不是某些类存在
 	}
 
 	/**

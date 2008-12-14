@@ -51,8 +51,11 @@ public class VOFactory {
 	 * @throws DAOException
 	 */
 	public VOSupport getVOSupport(Object valueObject) throws DAOException {
+		if(valueObject instanceof VOSupport){
+			return (VOSupport)valueObject;
+		}
 
-		return (VOSupport) ProxyHelper.translateObject(VOSupport.class, valueObject);
+		return (VOSupport) ProxyHelper.translateObject(VOSupport.class,new VOInvocationHandler(valueObject),  valueObject);
 	}
 
 	public void setModelProvider(ModelProvider modelProvider) {
