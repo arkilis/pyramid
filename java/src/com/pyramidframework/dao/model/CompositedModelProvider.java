@@ -33,6 +33,19 @@ public class CompositedModelProvider implements ModelProvider {
 
 		return model;
 	}
+	
+	/**
+	 * 通知有模型注入
+	 */
+	public void setModel(DataModel model) {
+		if(topProvider != null){
+			topProvider.setModel(model);
+		}
+		
+		if (buttomProvider != null){
+			buttomProvider.setModel(model);
+		}
+	}
 
 	/**
 	 * 将两个模型进行合并

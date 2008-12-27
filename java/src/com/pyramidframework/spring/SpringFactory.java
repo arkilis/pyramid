@@ -1,6 +1,7 @@
 package com.pyramidframework.spring;
 
 import java.util.ArrayList;
+import java.util.Map;
 
 import javax.servlet.http.HttpServletRequest;
 
@@ -9,8 +10,11 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import com.pyramidframework.ci.ConfigDocumentParser;
-import com.pyramidframework.ci.ConfigDomain;
 import com.pyramidframework.ci.TypedManager;
+import com.pyramidframework.ci.impl.ConfigDamainTree;
+import com.pyramidframework.ci.impl.ConfigDomainImpl;
+import com.pyramidframework.ci.impl.ConfigServiceProvider;
+import com.pyramidframework.sdi.xml.XmlNode;
 
 /**
  * 构造spriing的beanfactory的工厂类.可以使用默认的spring文档的解析器，也可以自己实现一个解析器并且组成使用。
@@ -79,12 +83,7 @@ public class SpringFactory {
 	 * @return InheritedBeanFactory的实例
 	 */
 	public AutowireCapableBeanFactory getBeanFactory(String functionPath) {
-		try {
-			currentPathStack.set(new ArrayList());
-			return (InheritedBeanFactory) manager.getConfigData(functionPath);
-		} finally {
-			currentPathStack.set(null);
-		}
+		return (InheritedBeanFactory) manager.getConfigData(functionPath);
 	}
 
 	/**
@@ -112,54 +111,69 @@ public class SpringFactory {
 		return (String) a.get(a.size() - 1);
 	}
 
-	// 内部只有的管理器的实例
+	// 内部持有的管理器的实例
 	TypedManager manager = new TypedManager(defaultType) {
-		public ConfigDomain getConfigDomain(String functionPath) {
-			ArrayList stack = (ArrayList) currentPathStack.get();
+		protected ConfigServiceProvider getDataProvider() {
+			if (_providerInstance == null) {
+				synchronized (this) {
+					if (_providerInstance == null) {
+						_providerInstance = new ConfigDamainTree(this) {
+							protected Map getTypedContainer(String type) {
+								return this.rootContainerMap;
+							}
 
-			try {
-				stack.add(functionPath);
+							/**
+							 * 构建访问路径
+							 */
+							protected ConfigDomainImpl lookupAndConstructDomain(String functionPath, String configType, ConfigDocumentParser parser, String targetPath) {
+								
+								ArrayList a = ((ArrayList) currentPathStack.get());
+								boolean init = false;
+								
+								if (a == null) {
+									a = new ArrayList();
+									currentPathStack.set(a);
+									init = true;
+								}
+								
+								try {	//只有真正构造一个新的节点数据时，才记住当前操作的路径
+									if (functionPath != null && functionPath.equals(targetPath)){
+										a.add(functionPath);
+									}
+									return super.lookupAndConstructDomain(functionPath, configType, parser, targetPath);
+								} finally {
+									if (functionPath != null && functionPath.equals(targetPath)){
+										a.remove(a.size() - 1);
+									}
+									if (init){
+										currentPathStack.set(null);
+									}
+								}
+							}
 
-				return super.getConfigDomain(functionPath);
-			} finally {
-				stack.remove(stack.size() - 1);
+							/**
+							 * 当构建完成后需要判断那些引用和别名发生了变化，将其都放置到本域中
+							 */
+							public ConfigDomainImpl parseAndConstructDomain(ConfigDomainImpl domainImpl, String targetPath, XmlNode node, ConfigDocumentParser parser) {
+
+								ConfigDomainImpl impl = super.parseAndConstructDomain(domainImpl, targetPath, node, parser);
+
+								if (getCurrentTargetPath().equals(targetPath)) {
+									InheritedBeanFactory factory = (InheritedBeanFactory) impl.getConfigData();
+
+									if (factory != null) {
+										factory.lookupRelatedBeanDefinitions();
+									}
+								}
+
+								return impl;
+							}
+						};
+					}
+				}
 			}
-		}
 
-		public Object getConfigData(String functionPath) {
-			ArrayList stack = (ArrayList) currentPathStack.get();
-
-			try {
-				stack.add(functionPath);
-
-				return super.getConfigData(functionPath);
-			} finally {
-				stack.remove(stack.size() - 1);
-			}
-		}
-
-		public Object getConfigData(String functionPath, String configType) {
-			ArrayList stack = (ArrayList) currentPathStack.get();
-
-			try {
-				stack.add(functionPath);
-
-				return super.getConfigData(functionPath, configType);
-			} finally {
-				stack.remove(stack.size() - 1);
-			}
-		}
-
-		public ConfigDomain getConfigDomain(String functionPath, String configType) {
-			ArrayList stack = (ArrayList) currentPathStack.get();
-
-			try {
-				stack.add(functionPath);
-
-				return super.getConfigDomain(functionPath, configType);
-			} finally {
-				stack.remove(stack.size() - 1);
-			}
+			return _providerInstance;
 		}
 	};
 
@@ -174,4 +188,5 @@ public class SpringFactory {
 	public static void setDefault(SpringFactory defaultInstance) {
 		SpringFactory.defaultInstance = defaultInstance;
 	}
+
 }
