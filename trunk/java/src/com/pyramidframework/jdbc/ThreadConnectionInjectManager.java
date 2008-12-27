@@ -127,7 +127,7 @@ public class ThreadConnectionInjectManager implements ThreadConnectionManager {
 			ThreadConnectionAware aware = translateToAware(component);
 			if (!components.containsKey(component)) {
 				components.put(component, aware);
-
+				
 				// 有打开的连接则关闭
 				aware.setConnection(getCurrent());
 			}

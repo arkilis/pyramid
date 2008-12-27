@@ -26,6 +26,17 @@ public class CachedModelProvider implements ModelProvider {
 
 		return ((DataModel)model);
 	}
+	
+	/**
+	 * 通知有模型产生
+	 */
+	public void setModel(DataModel model) {
+		modelCacheMap.put(model.getModelName(), model);
+		if (modelProvider != null){
+			modelProvider.setModel(model);
+		}
+	}
+	
 
 	public ModelProvider getModelProvider() {
 		return modelProvider;

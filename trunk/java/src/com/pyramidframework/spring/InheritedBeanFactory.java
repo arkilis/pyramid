@@ -1,13 +1,17 @@
 package com.pyramidframework.spring;
 
-import org.springframework.beans.BeanWrapper;
-import org.springframework.beans.BeansException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import org.springframework.beans.MutablePropertyValues;
+import org.springframework.beans.PropertyValue;
 import org.springframework.beans.factory.BeanDefinitionStoreException;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.beans.factory.config.BeanReference;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
-import org.springframework.beans.factory.support.AbstractBeanDefinition;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.web.context.request.RequestScope;
@@ -21,7 +25,15 @@ import org.springframework.web.context.request.SessionScope;
  */
 class InheritedBeanFactory extends DefaultListableBeanFactory {
 
-	ThreadLocal rootBeanFactory = new ThreadLocal();
+	String functionPath = null;
+
+	public String getFunctionPath() {
+		return functionPath;
+	}
+
+	void setFunctionPath(String functionPath) {
+		this.functionPath = functionPath;
+	}
 
 	/**
 	 * 
@@ -80,7 +92,7 @@ class InheritedBeanFactory extends DefaultListableBeanFactory {
 	}
 
 	/**
-	 * 如果上级包含一样的，则不再注册 TODO:如果是本级强行配置的，则认为是新的配置
+	 * 如果上级包含一样的，则不再注册
 	 */
 	public void registerBeanDefinition(String beanName, BeanDefinition beanDefinition) throws BeanDefinitionStoreException {
 		BeanDefinition definition = null;
@@ -91,9 +103,37 @@ class InheritedBeanFactory extends DefaultListableBeanFactory {
 			definition = null;
 		}
 
-		if (!beanDefinition.equals(definition)) {
+		if (!BeanDefinitionsEqual(beanDefinition, definition)) {
 			super.registerBeanDefinition(beanName, beanDefinition);
+			registerParentAclias(beanName);
 		}
+	}
+
+	/**
+	 * 需要判断两个对象的属性的值是不是一样
+	 * 
+	 * @param bd1
+	 * @param bd2
+	 * @return
+	 */
+	protected boolean BeanDefinitionsEqual(BeanDefinition bd1, BeanDefinition bd2) {
+		if (bd1.equals(bd2)) {
+
+			PropertyValue[] pvs1 = bd1.getPropertyValues().getPropertyValues();
+			PropertyValue[] pvs2 = bd2.getPropertyValues().getPropertyValues();
+
+			for (int i = 0; i < pvs1.length; i++) {
+				if (pvs1[i].getValue() == null && pvs2[i].getValue() != null) {
+					return false;
+				}
+				if (!pvs1[i].getValue().equals(pvs2[i].getValue())) {
+					return false;
+				}
+			}
+
+			return true;
+		}
+		return false;
 	}
 
 	/**
@@ -120,30 +160,78 @@ class InheritedBeanFactory extends DefaultListableBeanFactory {
 		}
 	}
 
-	public Object getBean(String name, Class requiredType, Object[] args) throws BeansException {
-		boolean startAtThis = false;
-		try {
-			if (rootBeanFactory.get() == null) {
-				rootBeanFactory.set(this);
-				startAtThis = true;
-			}
-			return super.getBean(name, requiredType, args);
-		} finally {
-			if (startAtThis) {
-				rootBeanFactory.set(null);
+	/**
+	 * 寻找到受到本工厂配置影响的bean，并将其BeanDefinition和alias复制到本工厂内
+	 */
+	void lookupRelatedBeanDefinitions() {
+		String[] selfBeans = super.getBeanDefinitionNames();
+		ArrayList beans = new ArrayList();
+		beans.addAll(Arrays.asList(selfBeans));
+		for (int i = 0; i < beans.size(); i++) {
+			String beanName = (String) beans.get(i);
+			ArrayList list = getParentRelatedBeanDefinitions(beanName);
+			for (int j = 0; j < list.size(); j++) {
+				String name = (String) list.get(j);
+				if (!containsBeanDefinition(name)) {
+					super.registerBeanDefinition(name, getBeanDefinition(name));
+
+					beans.add(name);
+					registerParentAclias(name);
+				}
 			}
 		}
 	}
 
 	/**
-	 * 确保在最开始开始初始化
+	 * @param name
 	 */
-	protected void populateBean(String beanName, AbstractBeanDefinition mbd, BeanWrapper bw) {
-		InheritedBeanFactory rootFactory = (InheritedBeanFactory) rootBeanFactory.get();
-		if (this == rootFactory) {
-			super.populateBean(beanName, mbd, bw);
-		} else {
-			rootFactory.populateBean(beanName, mbd, bw);
+	protected void registerParentAclias(String name) {
+		if (getParentBeanFactory() != null) {
+			String alias[] = getParentBeanFactory().getAliases(name);
+			for (int k = 0; k < alias.length; k++) {
+				if (!isAlias(alias[k])) {
+					registerAlias(name, alias[k]);
+				}
+			}
 		}
+	}
+
+	/**
+	 * 得到父工厂内存在的相关的bean的定义
+	 * 
+	 * @param name
+	 * @return
+	 */
+	ArrayList getParentRelatedBeanDefinitions(String name) {
+		ArrayList relatedBeans = new ArrayList();
+		BeanFactory parentFactory = getParentBeanFactory();
+		if (parentFactory != null && parentFactory instanceof BeanDefinitionRegistry) {
+			BeanDefinitionRegistry re = (BeanDefinitionRegistry) parentFactory;
+			String beannames[] = re.getBeanDefinitionNames();
+
+			for (int i = 0; i < beannames.length; i++) {
+				List alias = Arrays.asList(parentFactory.getAliases(beannames[i]));
+
+				// 如果有beanreference，则认为相同
+				BeanDefinition definition = re.getBeanDefinition(beannames[i]);
+				MutablePropertyValues values = definition.getPropertyValues();
+				PropertyValue[] pvs = values.getPropertyValues();
+				for (int j = 0; j < pvs.length; j++) {
+					if (pvs[j].getValue() instanceof BeanReference) {
+						String beanName = ((BeanReference) pvs[j].getValue()).getBeanName();
+						if (name.equals(beanName) || alias.contains(beanName)) {
+							relatedBeans.add(beannames[i]);
+							break;
+						}
+					}
+				}
+
+			}
+			if (parentFactory instanceof InheritedBeanFactory) {
+				List pList = ((InheritedBeanFactory) parentFactory).getParentRelatedBeanDefinitions(name);
+				relatedBeans.addAll(pList);
+			}
+		}
+		return relatedBeans;
 	}
 }

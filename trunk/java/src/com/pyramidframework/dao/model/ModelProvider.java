@@ -14,4 +14,11 @@ public interface ModelProvider {
 	 */
 	public DataModel getModelByName(String modelName);
 	
+	/**
+	 * 往里面放入模型
+	 * @param model
+	 */
+	public void setModel(DataModel model);
+	
+	
 }

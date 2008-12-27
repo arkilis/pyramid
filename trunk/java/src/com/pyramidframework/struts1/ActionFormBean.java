@@ -12,6 +12,7 @@ public class ActionFormBean {
 	private Map models = new HashMap();
 	private int pageSize = 10;
 	private int currPage = 1;
+	private int totalCount = 0;
 	
 	public int getPageSize() {
 		return pageSize;
@@ -60,5 +61,13 @@ public class ActionFormBean {
 
 	public void setQueryResult(List queryResult) {
 		this.queryResult = queryResult;
+	}
+
+	public int getTotalCount() {
+		return totalCount;
+	}
+
+	public void setTotalCount(int totalCount) {
+		this.totalCount = totalCount;
 	}
 }

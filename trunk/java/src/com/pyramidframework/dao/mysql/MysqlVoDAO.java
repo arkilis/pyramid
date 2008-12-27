@@ -9,23 +9,114 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.pyramidframework.dao.DAOException;
+import com.pyramidframework.dao.PaginatedResult;
+import com.pyramidframework.dao.SqlDAO;
 import com.pyramidframework.dao.VOFactory;
 import com.pyramidframework.dao.VOSupport;
-import com.pyramidframework.dao.ValueObjectDAO;
 import com.pyramidframework.dao.model.DataModel;
 import com.pyramidframework.dao.model.DataType;
 import com.pyramidframework.dao.model.ModelField;
 import com.pyramidframework.dao.model.ModelProvider;
+import com.pyramidframework.dao.model.datatype.ObjectDataType;
+import com.pyramidframework.dao.model.datatype.StringDataType;
+import com.pyramidframework.jdbc.ThreadConnectionManager;
+import com.pyramidframework.jdbc.ThreadConnectionManagerAware;
 
-public class MysqlVoDAO implements ValueObjectDAO {
+public class MysqlVoDAO implements SqlDAO, ThreadConnectionManagerAware {
 
 	private static Logger logger = Logger.getLogger(MysqlVoDAO.class.getName());
 
 	/** MYSQL中自增长列的标示 */
 	public static final String AUTO_INCREMENT = "auto_increment";
+
+	/**
+	 * 执行SQL的更新
+	 */
+	public int executeUpdate(String sql, List paramters, List datatypes) throws DAOException {
+
+		logger.info(sql);
+
+		PreparedStatement statement = null;
+		int result = 0;
+		
+		// 如果不是在外面打开的连接，则直接打开，并记得关闭
+		boolean out = true;
+		try {
+			Connection conn = manager.getCurrent();
+			if (conn == null) {
+				conn = manager.openConnection();
+				out = false;
+			}
+			statement = conn.prepareStatement(sql);
+			setParameters(paramters, datatypes, statement);
+			result = statement.executeUpdate();
+
+		} catch (SQLException e) {
+			catchException(e);
+		} finally {
+			if (!out) {
+				manager.closeConnection();
+			}
+			closeDBO(statement, null);
+		}
+		return result;
+	}
+
+	/**
+	 * 直接返回2维数据的形式，数据都是以getObject的形式返回的
+	 * 
+	 * @param sql
+	 * @param pageSize
+	 * @param page
+	 * @return
+	 * @throws DAOException
+	 */
+	public List queryData(String sql, List paramters, List datatypes) throws DAOException {
+		Object object = queryData(sql, paramters, datatypes, QUERY_HANDLER);
+		return (List) object;
+	}
+
+	/**
+	 * 查询数据，数据的处理交给handler完成
+	 * 
+	 * @param sql
+	 * @param handler
+	 * @throws DAOException
+	 * @return ResultSetHandler的返回值
+	 */
+	public Object queryData(String sql, List paramters, List datatypes, ResultSetHandler handler) throws DAOException {
+		logger.info(sql);
+
+		PreparedStatement statement = null;
+		ResultSet result = null;
+
+		// 如果不是在外面打开的连接，则直接打开，并记得关闭
+		boolean out = true;
+		try {
+			Connection conn = manager.getCurrent();
+			if (conn == null) {
+				conn = manager.openConnection();
+				out = false;
+			}
+
+			statement = conn.prepareStatement(sql);
+			setParameters(paramters, datatypes, statement);
+			result = statement.executeQuery();
+			return handler.handleResult(result);
+		} catch (SQLException e) {
+			catchException(e);
+			return null;
+		} finally {
+			if (!out) {
+				manager.closeConnection();
+			}
+			closeDBO(statement, result);
+		}
+	}
 
 	public Object add(Object dataObject) throws DAOException {
 		VOSupport vo = voFactory.getVOSupport(dataObject);
@@ -58,7 +149,7 @@ public class MysqlVoDAO implements ValueObjectDAO {
 
 			ModelField field = model.getFieldByName((String) entry.getKey());
 			// 没有的列跳过
-			if (field == null && field.getSequence() != null) {
+			if (field == null && AUTO_INCREMENT.equalsIgnoreCase(field.getSequence())) {
 				continue;
 			}
 
@@ -85,31 +176,12 @@ public class MysqlVoDAO implements ValueObjectDAO {
 		}
 		insertSql.append(")");
 
-		ResultSet rst = null;
-		PreparedStatement statement = null;
+		executeUpdate(insertSql.toString(), params, datatype);
 
-		try {
-			String sql = insertSql.toString();
-			statement = getConnection().prepareStatement(sql);
-
-			// TODO:LOG
-			logger.info(sql + params);
-
-			setParameter(params, datatype, statement);
-			statement.execute();
-
-			if (autoColumn != null) {
-
-				rst = statement.getGeneratedKeys();
-				if (rst.next()) {
-					values.put(autoColumn, rst.getObject(1));
-				}
-			}
-		} catch (SQLException e) {
-			e.printStackTrace();
-			throw new DAOException(e);
-		} finally {
-			closeDBO(statement, rst);
+		// 自增长列需要将值返回
+		if (autoColumn != null) {
+			Object object = queryData("select LAST_INSERT_ID() ", null, null, IDROW_HANDLER);
+			values.put(autoColumn, object);
 		}
 
 		return dataObject;
@@ -168,16 +240,13 @@ public class MysqlVoDAO implements ValueObjectDAO {
 			params.add(v);
 			datatype.add(field.getType());
 		}
-		String sql = updateSql.toString();
-		// TODO:LOG
-		logger.info(sql + params);
 
-		executeUpdate(sql, params, datatype);
+		executeUpdate(updateSql.toString(), params, datatype);
 
 		return dataObject;
 	}
 
-	public Object delete(Object dataObject) throws DAOException {
+	public int delete(Object dataObject) throws DAOException {
 		VOSupport vo = voFactory.getVOSupport(dataObject);
 		Map values = vo.getValues();
 		DataModel model = modelProvider.getModelByName(vo.getName());
@@ -188,27 +257,13 @@ public class MysqlVoDAO implements ValueObjectDAO {
 
 		deleBuffer.append("delete from ").append(vo.getName()).append(" where ");
 
+		ArrayList params = new ArrayList(primarySize);
+		ArrayList datatype = new ArrayList(primarySize);
+
 		// 根据主键生产查询条件
-		appendPrimarycondition(model.getPramaryKeys(), deleBuffer);
-		PreparedStatement statement = null;
-		try {
+		appendPrimarycondition(model.getPramaryKeys(), deleBuffer, params, datatype, values);
 
-			String sql = deleBuffer.toString();
-			// TODO:LOG
-			logger.info(sql + values);
-
-			statement = getConnection().prepareStatement(sql);
-			setPrimaryParameter(values, model.getPramaryKeys(), statement);
-			statement.execute();
-
-		} catch (SQLException e) {
-			e.printStackTrace();
-			throw new DAOException(e);
-		} finally {
-			closeDBO(statement, null);
-		}
-
-		return dataObject;
+		return executeUpdate(deleBuffer.toString(), params, datatype);
 	}
 
 	/**
@@ -232,51 +287,30 @@ public class MysqlVoDAO implements ValueObjectDAO {
 
 		selectSql.append(" from ").append(model.getModelName()).append(" where ");
 
+		ArrayList params = new ArrayList(prisize);
+		ArrayList datatype = new ArrayList(prisize);
+
 		// 根据主键生产查询条件
-		appendPrimarycondition(model.getPramaryKeys(), selectSql);
-
-		String sql = selectSql.toString();
-		// TODO:LOG
-		logger.info(sql + primaryKeyValues);
-
-		// 设置查询结果
-		PreparedStatement statement = null;
-		ResultSet rst = null;
-		try {
-			statement = getConnection().prepareStatement(sql);
-			setPrimaryParameter(primaryKeyValues, model.getPramaryKeys(), statement);
-			rst = statement.executeQuery();
-
-			if (rst.next()) {// 如果有查到，则取第一个查询结果
-				VOSupport vo = voFactory.getVOSupport(modelName);
-				Map map = vo.getValues();
-				for (int i = 0; i < fields.size(); i++) {
-					ModelField field = (ModelField) fields.get(i);
-					map.put(field.getName(), field.getType().getData(rst, i + 1));
-				}
-				return vo;
-			} else {
-				return null;
-			}
-		} catch (SQLException e) {
-			e.printStackTrace();
-			throw new DAOException(e);
-		} finally {
-			closeDBO(statement, rst);
+		appendPrimarycondition(model.getPramaryKeys(), selectSql, params, datatype, primaryKeyValues);
+		VOResultSetHandler handler = new VOResultSetHandler(voFactory, modelName);
+		List vos = (List) queryData(selectSql.toString(), params, datatype, handler);
+		if (vos.size() > 0) {
+			return vos.get(0);
 		}
+		return null;
 	}
 
 	/**
 	 * TODO：高级表达式
 	 */
-	public List query(String modelName, Map queryValues,String orderBy, int pageSize, int page) throws DAOException {
+	public PaginatedResult query(String modelName, Map queryValues, String orderBy, int pageSize, int page) throws DAOException {
 		DataModel model = modelProvider.getModelByName(modelName);
 		List fields = model.getFiledList();
 		int prisize = queryValues == null ? 0 : queryValues.size();
 
 		int preferLength = model.getColumnLength() + model.getPrimaryLength() + 6 * prisize + 2 * fields.size() + 20;
 		StringBuffer selectSql = new StringBuffer(preferLength);
-		selectSql.append("select ");
+		selectSql.append("select SQL_CALC_FOUND_ROWS ");
 		for (int i = 0; i < fields.size(); i++) {
 			ModelField field = (ModelField) fields.get(i);
 			if (i > 0) {
@@ -315,8 +349,8 @@ public class MysqlVoDAO implements ValueObjectDAO {
 				datatype.add(model.getFieldByName(name).getType());
 			}
 		}
-		
-		if (orderBy != null && !"".equals(orderBy)){
+
+		if (orderBy != null && !"".equals(orderBy)) {
 			selectSql.append(" order by ").append(orderBy);
 		}
 
@@ -329,49 +363,26 @@ public class MysqlVoDAO implements ValueObjectDAO {
 		}
 
 		String sql = selectSql.toString();
-		// TODO:LOG
-		logger.info(sql + params);
 
-		// 设置查询结果
-		PreparedStatement statement = null;
-		ResultSet rst = null;
-		try {
+		VOResultSetHandler handler = new VOResultSetHandler(voFactory, modelName);
+		List pageData = (List) queryData(sql, params, datatype, handler);
 
-			statement = getConnection().prepareStatement(sql);
-			setParameter(params, datatype, statement);
-			rst = statement.executeQuery();
+		int total = Integer.parseInt(queryData("SELECT FOUND_ROWS() ", null, null, IDROW_HANDLER).toString());
 
-			List datas = new ArrayList();
-			while (rst.next()) {// 如果有查到，则取第一个查询结果
-				VOSupport vo = voFactory.getVOSupport(modelName);
-				Map map = vo.getValues();
-				for (int i = 0; i < fields.size(); i++) {
-					ModelField field = (ModelField) fields.get(i);
-					map.put(field.getName(), field.getType().getData(rst, i + 1));
-				}
-				datas.add(vo);
-			}
-			return datas;
-		} catch (SQLException e) {
-			e.printStackTrace();
-			throw new DAOException(e);
-		} finally {
-			closeDBO(statement, rst);
-		}
+		return new PaginatedResult(total, pageData);
 	}
 
 	protected ThreadLocal conn = new ThreadLocal(); // 数据库连接
 	protected ModelProvider modelProvider = null; // 模型访问程序
 	protected VOFactory voFactory = null; // 模型构造工厂
-	protected static final Object NULL_OBJECT = new Object(); // 用作NULL值的内部标示
+	protected DataType STRINGTYPE = new StringDataType(DataType.VARCHAR);
+	protected DataType OBJECTTYPE = new ObjectDataType(DataType.JAVA_OBJECT);
+	protected ResultSetHandler IDROW_HANDLER = new SingleObjectHandler();
+	protected ResultSetHandler QUERY_HANDLER = new QueryResultSetHandler();
+	protected ThreadConnectionManager manager = null;
 
-	public Connection getConnection() {
-		return (Connection) conn.get();
-	}
-
-	public void setConnection(Connection connection) {
-		this.conn.set(connection);
-	}
+	/** 用作NULL值的内部标示,用于List等容器中占位 */
+	public static final Object NULL_OBJECT = new Object(); // 
 
 	/**
 	 * 直接关闭数据库对象
@@ -420,50 +431,13 @@ public class MysqlVoDAO implements ValueObjectDAO {
 	}
 
 	/**
-	 * @param sql
-	 * @param params
-	 * @param datatype
-	 */
-	protected void executeUpdate(String sql, ArrayList params, ArrayList datatype) {
-		PreparedStatement statement = null;
-		try {
-			statement = getConnection().prepareStatement(sql);
-			setParameter(params, datatype, statement);
-			statement.execute();
-		} catch (SQLException e) {
-			e.printStackTrace();
-			throw new DAOException(e);
-		} finally {
-			closeDBO(statement, null);
-		}
-	}
-
-	/**
-	 * 设置主键的查询条件值
-	 * 
-	 * @param values
-	 * @param fields
-	 * @param prisize
-	 * @param statement
-	 */
-	protected void setPrimaryParameter(Map values, List fields, PreparedStatement statement) {
-		int prisize = fields.size();
-		for (int i = 0; i < prisize; i++) {
-			ModelField field = (ModelField) fields.get(i);
-			Object j = values.get(field.getName());
-			DataType type = field.getType();
-			type.setParameter(statement, i + 1, j);
-		}
-	}
-
-	/**
 	 * 添加针对主键的查询条件
 	 * 
 	 * @param fields
 	 * @param prisize
 	 * @param sql
 	 */
-	protected void appendPrimarycondition(List fields, StringBuffer sql) {
+	protected void appendPrimarycondition(List fields, StringBuffer sql, ArrayList params, ArrayList datatypes, Map values) {
 
 		int prisize = fields.size();
 
@@ -473,7 +447,23 @@ public class MysqlVoDAO implements ValueObjectDAO {
 				sql.append(" and ");
 			}
 			sql.append(field.getName()).append("=?");
+			Object value = values.get(field.getName());
+			if (value == null) {
+				value = NULL_OBJECT;
+			}
+			params.add(value);
+			datatypes.add(field.getType());
 		}
+	}
+
+	/**
+	 * 捕捉并处理异常
+	 * 
+	 * @param e
+	 */
+	public static void catchException(Exception e) {
+		logger.log(Level.SEVERE, "error", e);
+		throw new DAOException(e);
 	}
 
 	public VOFactory getVoFactory() {
@@ -482,6 +472,51 @@ public class MysqlVoDAO implements ValueObjectDAO {
 
 	public void setVoFactory(VOFactory voFactory) {
 		this.voFactory = voFactory;
+	}
+
+	public void setThreadConnectionManager(ThreadConnectionManager connectionManager) {
+		this.manager = connectionManager;
+	}
+
+	public ThreadConnectionManager getThreadConnectionManager() {
+		return manager;
+	}
+
+	/**
+	 * 设置执行的参数
+	 * 
+	 * @param paramters
+	 * @param datatypes
+	 * @param statement
+	 */
+	protected void setParameters(List paramters, List datatypes, PreparedStatement statement) {
+		if (paramters != null) {
+			int psize = paramters.size();
+			int dtSize = -1;
+			if (datatypes != null) {
+				dtSize = datatypes.size();
+			}
+
+			for (int i = 1, f = 0; i <= psize; i++) {
+				DataType dataType = null;
+				Object value = paramters.get(f);
+				if (value == NULL_OBJECT) {
+					value = null;
+				}
+
+				if (i <= dtSize) {
+					dataType = (DataType) datatypes.get(f);
+				} else {
+					if (value instanceof String) {
+						dataType = STRINGTYPE;
+					} else {
+						dataType = OBJECTTYPE;
+					}
+				}
+				dataType.setParameter(statement, i, value);
+				f = i;
+			}
+		}
 	}
 
 }

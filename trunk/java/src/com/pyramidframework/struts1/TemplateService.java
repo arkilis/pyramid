@@ -1,5 +1,6 @@
 package com.pyramidframework.struts1;
 
+import com.pyramidframework.dao.PaginatedResult;
 import com.pyramidframework.dao.VOFactory;
 import com.pyramidframework.dao.VOSupport;
 import com.pyramidframework.dao.ValueObjectDAO;
@@ -50,8 +51,10 @@ public class TemplateService {
 		ActionFormBean bean = getBean();
 		
 		VOSupport support = voFactory.getVOSupport(bean.getModel(modelName));
-
-		bean.setQueryResult(dao.query(modelName, support.getValues(),null, bean.getPageSize(), bean.getCurrPage()));
+		PaginatedResult result = dao.query(modelName, support.getValues(),null, bean.getPageSize(), bean.getCurrPage());
+		
+		bean.setQueryResult(result.getPageDataList());
+		bean.setTotalCount(result.getTotalCount());
 		return ActionSupport.SUCCESS;
 	}
 
