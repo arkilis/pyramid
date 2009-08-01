@@ -2,8 +2,9 @@ package com.pyramidframework.dao;
 
 import java.sql.ResultSet;
 import java.util.List;
+import java.util.Map;
 
-import com.pyramidframework.dao.model.DataType;
+import com.pyramidframework.dao.model.datatype.DataType;
 
 public interface SqlDAO extends ValueObjectDAO {
 
@@ -37,7 +38,33 @@ public interface SqlDAO extends ValueObjectDAO {
 	 * @return ResultSetHandler的返回值
 	 */
 	public Object queryData(String sql, List paramters, List datatypes, ResultSetHandler handler) throws DAOException;
+	
+	/**
+	 * 和{@link ValueObjectDAO#query(String, Map, String, int, int)}一样，但是使用handler返回结果
+	 * @param modelName
+	 * @param queryValues
+	 * @param orderBy
+	 * @param pageSize
+	 * @param page
+	 * @param handler
+	 * @return
+	 * @throws DAOException
+	 */
+	public Object query(String modelName, Map queryValues, String orderBy, int pageSize, int page,ResultSetHandler handler) throws DAOException;
+	
 
+	/**
+	 * 
+	 * @param sql
+	 * @param queryValues
+	 * @param pageSize
+	 * @param page
+	 * @return
+	 * @throws DAOException
+	 */
+	public PaginatedResult queryData(String sql, List paramters, List datatypes,int pageSize, int page) throws DAOException;
+	
+	
 	/**
 	 * 处理结果集的处理类
 	 * 

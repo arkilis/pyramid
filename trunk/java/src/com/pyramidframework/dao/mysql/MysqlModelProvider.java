@@ -3,13 +3,16 @@ package com.pyramidframework.dao.mysql;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import com.pyramidframework.dao.DAOException;
 import com.pyramidframework.dao.SqlDAO;
 import com.pyramidframework.dao.model.DataModel;
-import com.pyramidframework.dao.model.DataType;
 import com.pyramidframework.dao.model.ModelField;
 import com.pyramidframework.dao.model.ModelProvider;
+import com.pyramidframework.dao.model.datatype.DataType;
+import com.pyramidframework.dao.model.datatype.DataTypeFactory;
+import com.pyramidframework.dao.model.datatype.SystemDataTypeFactory;
 
 /**
  * 从MYSQL数据库中获取对应的表结构
@@ -17,10 +20,11 @@ import com.pyramidframework.dao.model.ModelProvider;
  * @author Mikab Peng
  * 
  */
-public class MysqlModelProvider implements ModelProvider {
+public class MysqlModelProvider implements ModelProvider, DataTypeFactory {
 
 	private String databaseSchema = null;// 当前MYSQL用户的默认schema,
 	private SqlDAO sqlDAO = null;
+	private DataTypeFactory dataTypeFactory = this;
 
 	public DataModel getModelByName(String name) {
 		return getModelFromDB(name);
@@ -34,6 +38,16 @@ public class MysqlModelProvider implements ModelProvider {
 	 */
 	protected DataModel getModelFromDB(String name) {
 		String sql = "show full columns from " + name;
+		ArrayList params = new ArrayList();
+		params.add(name);
+		params.add(getDatabaseSchema());
+		String cntSql = "SELECT count(*) FROM information_schema.TABLES T where t.table_name=? and table_schema=?";
+
+		Object object = sqlDAO.queryData(cntSql, params, null, new SingleObjectHandler());
+		int cnt = Integer.parseInt(object.toString());
+		if (cnt <=0 ){
+			return null;
+		}
 
 		final DataModel model = new DataModel(name);
 
@@ -48,32 +62,10 @@ public class MysqlModelProvider implements ModelProvider {
 						String comment = resultSet.getString(9);
 
 						ModelField field = new ModelField(fieldname);
-						if (typeName.indexOf('(') > 0) {
-
-							String tName = typeName.substring(0, typeName.indexOf('('));
-							// 需要对INT型进行处理
-							if ("INT".equalsIgnoreCase(tName)) {
-								int length = Integer.parseInt(typeName.substring(typeName.indexOf('(') + 1, typeName.indexOf(')')));
-								if (length <= 10) {
-									tName = "INTEGER";
-								} else {
-									tName = "BIGINT";
-								}
-							}
-							typeName = tName;
-						}
-						field.setType(DataType.getDataType(typeName));
-
-						if (keyName.indexOf("PRI") >= 0) {
-							field.setPrimary(true);
-						}
-
-						if (extra.indexOf(MysqlVoDAO.AUTO_INCREMENT) >= 0) {
-							field.setSequence(MysqlVoDAO.AUTO_INCREMENT);
-						}
-						if (comment != null) {
-							field.setLabel(comment);
-						}
+						field.setType(dataTypeFactory.fromDBSchema(typeName));
+						if (keyName.indexOf("PRI") >= 0) field.setPrimary(true);
+						if (extra.indexOf(MysqlVoDAO.AUTO_INCREMENT) >= 0) field.setSequence(MysqlVoDAO.AUTO_INCREMENT);
+						if (comment != null) field.setLabel(comment);
 						model.addModelFiled(field);
 					}
 				} catch (Exception e) {
@@ -105,26 +97,14 @@ public class MysqlModelProvider implements ModelProvider {
 			List fields = model.getFiledList();
 			for (int i = 0; i < fields.size(); i++) {
 				ModelField field = (ModelField) fields.get(i);
-				builder.append(field.getName());
-				if (field.getType().getType() == DataType.INTEGER) {
-					builder.append(field.getName()).append(" integer ");
-				} else if (field.getType().getType() == DataType.BLOB) {
-					builder.append(field.getName()).append(" blob ");
-				} else if (field.getType().getType() == DataType.DOUBLE) {
-					builder.append(field.getName()).append(" double ");
-				} else if (field.getType().getType() == DataType.DATE) {
-					builder.append(field.getName()).append(" date ");
-				} else {// 定长字符串
-					builder.append(field.getName()).append(" varchar(200) ");
-				}
+				builder.append(field.getName()).append(" ");
+				builder.append(field.getType().toDBSchema()).append(" ");
 
-				if (field.isPrimary()) {
-					builder.append(field.getName()).append(" not null ");
-				}
+				if (field.isPrimary()) builder.append(" not null ");
+				if (MysqlVoDAO.AUTO_INCREMENT.equals(field.getSequence())) builder.append(MysqlVoDAO.AUTO_INCREMENT);
+				String l = field.getLabel();
+				if (l != null && l.length() > 0) builder.append(" COMMENT '").append(l.replace("'", "''")).append("' ");
 
-				if (MysqlVoDAO.AUTO_INCREMENT.equals(field.getSequence())) {
-					builder.append(field.getName()).append(MysqlVoDAO.AUTO_INCREMENT);
-				}
 				builder.append(",\r\n");
 			}
 
@@ -132,9 +112,8 @@ public class MysqlModelProvider implements ModelProvider {
 			if (pri.size() > 0) {
 				builder.append(" primary key (");
 				for (int i = 0; i < pri.size(); i++) {
-					if (i > 0) {
-						builder.append(",");
-					}
+					if (i > 0) builder.append(",");
+
 					ModelField field = (ModelField) fields.get(i);
 					builder.append(field.getName());
 				}
@@ -144,8 +123,25 @@ public class MysqlModelProvider implements ModelProvider {
 			}
 			builder.append(")");
 			sqlDAO.executeUpdate(builder.toString(), null, null);
+
 		}
 
+	}
+
+	public DataType fromDBSchema(String columnDescription) {
+		return SystemDataTypeFactory.getInstance().fromDBSchema(columnDescription);
+	}
+
+	public DataType fromString(String typeDescription, Map props) {
+		return SystemDataTypeFactory.getInstance().fromString(typeDescription, props);
+	}
+
+	public DataTypeFactory getDataTypeFactory() {
+		return dataTypeFactory;
+	}
+
+	public void setDataTypeFactory(DataTypeFactory dataTypeFactory) {
+		this.dataTypeFactory = dataTypeFactory;
 	}
 
 	/**
@@ -173,4 +169,5 @@ public class MysqlModelProvider implements ModelProvider {
 	public void setSqlDAO(SqlDAO sqlDAO) {
 		this.sqlDAO = sqlDAO;
 	}
+
 }

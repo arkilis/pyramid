@@ -34,6 +34,8 @@ public class ActionContext {
 	HttpServletResponse response = null;
 	String path  = null;
 	Object formbean = null;
+	
+	
 
 	public BeanFactory getBeanFactory() {
 		return beanFactory;
@@ -74,4 +76,20 @@ public class ActionContext {
 	public void setPath(String path) {
 		this.path = path;
 	}
+	
+	public Object getSession(String name){
+		return getRequest().getSession(true).getAttribute(name);
+	}
+	
+	public void setSession(String name,Object value){
+		getRequest().getSession(true).setAttribute(name,value);
+	}
+	
+	
+	public void invalidateSession(){
+		if (getRequest().getSession() != null){
+			getRequest().getSession().invalidate();
+		}
+	}
+
 }

@@ -18,10 +18,11 @@ import com.pyramidframework.dao.SqlDAO;
 import com.pyramidframework.dao.VOFactory;
 import com.pyramidframework.dao.VOSupport;
 import com.pyramidframework.dao.model.DataModel;
-import com.pyramidframework.dao.model.DataType;
+import com.pyramidframework.dao.model.JDBCHandler;
 import com.pyramidframework.dao.model.ModelField;
 import com.pyramidframework.dao.model.ModelProvider;
-import com.pyramidframework.dao.model.datatype.ObjectDataType;
+import com.pyramidframework.dao.model.datatype.DataType;
+import com.pyramidframework.dao.model.datatype.IntegerDataType;
 import com.pyramidframework.dao.model.datatype.StringDataType;
 import com.pyramidframework.jdbc.ThreadConnectionManager;
 import com.pyramidframework.jdbc.ThreadConnectionManagerAware;
@@ -29,6 +30,7 @@ import com.pyramidframework.jdbc.ThreadConnectionManagerAware;
 public class MysqlVoDAO implements SqlDAO, ThreadConnectionManagerAware {
 
 	private static Logger logger = Logger.getLogger(MysqlVoDAO.class.getName());
+	private static JDBCHandler PAGINATED_PARAM_HANDLER = new IntegerDataType();
 
 	/** MYSQL中自增长列的标示 */
 	public static final String AUTO_INCREMENT = "auto_increment";
@@ -89,7 +91,7 @@ public class MysqlVoDAO implements SqlDAO, ThreadConnectionManagerAware {
 	 * @return ResultSetHandler的返回值
 	 */
 	public Object queryData(String sql, List paramters, List datatypes, ResultSetHandler handler) throws DAOException {
-		logger.info(sql);
+		logger.info("sql:" + sql + " \r\nparamters:" + paramters);
 
 		PreparedStatement statement = null;
 		ResultSet result = null;
@@ -132,6 +134,7 @@ public class MysqlVoDAO implements SqlDAO, ThreadConnectionManagerAware {
 			ModelField field = (ModelField) model.getFiledList().get(i);
 			if (AUTO_INCREMENT.equalsIgnoreCase(field.getSequence())) {
 				autoColumn = field.getName();
+				
 			} else if (field.getSequence() != null) {
 				// TODO:实现各种sequence算法
 			}
@@ -149,7 +152,7 @@ public class MysqlVoDAO implements SqlDAO, ThreadConnectionManagerAware {
 
 			ModelField field = model.getFieldByName((String) entry.getKey());
 			// 没有的列跳过
-			if (field == null && AUTO_INCREMENT.equalsIgnoreCase(field.getSequence())) {
+			if (field == null || AUTO_INCREMENT.equalsIgnoreCase(field.getSequence())) {
 				continue;
 			}
 
@@ -187,7 +190,7 @@ public class MysqlVoDAO implements SqlDAO, ThreadConnectionManagerAware {
 		return dataObject;
 	}
 
-	public Object update(Object dataObject) throws DAOException {
+	public int update(Object dataObject) throws DAOException {
 		VOSupport vo = voFactory.getVOSupport(dataObject);
 		Map values = vo.getValues();
 		DataModel model = modelProvider.getModelByName(vo.getName());
@@ -241,9 +244,8 @@ public class MysqlVoDAO implements SqlDAO, ThreadConnectionManagerAware {
 			datatype.add(field.getType());
 		}
 
-		executeUpdate(updateSql.toString(), params, datatype);
+		return executeUpdate(updateSql.toString(), params, datatype);
 
-		return dataObject;
 	}
 
 	public int delete(Object dataObject) throws DAOException {
@@ -303,7 +305,7 @@ public class MysqlVoDAO implements SqlDAO, ThreadConnectionManagerAware {
 	/**
 	 * TODO：高级表达式
 	 */
-	public PaginatedResult query(String modelName, Map queryValues, String orderBy, int pageSize, int page) throws DAOException {
+	public Object query(String modelName, Map queryValues, String orderBy, int pageSize, int page,SqlDAO.ResultSetHandler handler) throws DAOException {
 		DataModel model = modelProvider.getModelByName(modelName);
 		List fields = model.getFiledList();
 		int prisize = queryValues == null ? 0 : queryValues.size();
@@ -331,20 +333,26 @@ public class MysqlVoDAO implements SqlDAO, ThreadConnectionManagerAware {
 			while (iterator.hasNext()) {
 				Map.Entry entry = (Map.Entry) iterator.next();
 				String name = entry.getKey().toString();
-
+				String operator = "=";
+				
+				int indx = name.indexOf(".");
+				if ( indx > 0 && indx < name.length()){
+					operator = name.substring(indx+1);
+					name = name.substring(0,indx);
+				}
+				
 				if (model.getFieldByName(name) == null) {
 					continue;
 				}
-
 				if (params.size() > 0) {
 					selectSql.append(" and ");
 				}
-				selectSql.append(name).append("=?");
-
 				Object v = entry.getValue();
 				if (v == null) {
 					v = NULL_OBJECT;
 				}
+				
+				selectSql.append(name).append(operator).append("?");
 				params.add(v);
 				datatype.add(model.getFieldByName(name).getType());
 			}
@@ -358,17 +366,54 @@ public class MysqlVoDAO implements SqlDAO, ThreadConnectionManagerAware {
 			selectSql.append(" limit ? ,? ");
 			params.add(new Integer((page - 1) * pageSize));
 			params.add(new Integer(pageSize));
-			datatype.add(DataType.getDataType(DataType.INTEGER));
-			datatype.add(DataType.getDataType(DataType.INTEGER));
+			datatype.add(PAGINATED_PARAM_HANDLER);
+			datatype.add(PAGINATED_PARAM_HANDLER);
 		}
 
 		String sql = selectSql.toString();
 
-		VOResultSetHandler handler = new VOResultSetHandler(voFactory, modelName);
-		List pageData = (List) queryData(sql, params, datatype, handler);
+		if (handler.getClass() == VOResultSetHandler.class){;
+			List pageData = (List) queryData(sql, params, datatype, handler);
+	
+			int total = Integer.parseInt(queryData("SELECT FOUND_ROWS() ", null, null, IDROW_HANDLER).toString());
+	
+			return new PaginatedResult(total, pageData);
+		}else{
+			return queryData(sql, params, datatype, handler);
+		}
+	}
+	
+	public PaginatedResult query(String modelName, Map queryValues, String orderBy, int pageSize, int page) throws DAOException {
 
+		return (PaginatedResult)query(modelName, queryValues, orderBy, pageSize, page,new VOResultSetHandler(getVOFactory(),modelName));
+	}
+	
+	public PaginatedResult queryData(String sql,List paramters, List datatypes, int pageSize, int page) throws DAOException {
+		if (pageSize > 0 && page > 0) {
+			StringBuilder builder = new StringBuilder(sql);
+			char select[] ={'s','e','l','e','c','t','S','E','L','E','C','T'};
+			int index =0;
+			for(int i=0;i < builder.length();i++){
+				if (builder.charAt(i) == select[index] || builder.charAt(i) == select[index+6]){
+					if (index ==5){
+						builder.insert(i+1, " SQL_CALC_FOUND_ROWS ").append(" limit ? ,? ");
+						if (paramters == null)  paramters = new ArrayList();
+						paramters.add(new Integer((page - 1) * pageSize));
+						paramters.add(new Integer(pageSize));
+						
+						if (datatypes == null)datatypes = new ArrayList();
+						datatypes.add(PAGINATED_PARAM_HANDLER);
+						datatypes.add(PAGINATED_PARAM_HANDLER);
+						sql = builder.toString();
+						break;
+					}else index ++;
+				}else{
+					index =0;
+				}
+			}
+		}
+		List pageData = (List) queryData(sql, paramters, datatypes, QUERY_HANDLER);
 		int total = Integer.parseInt(queryData("SELECT FOUND_ROWS() ", null, null, IDROW_HANDLER).toString());
-
 		return new PaginatedResult(total, pageData);
 	}
 
@@ -376,7 +421,7 @@ public class MysqlVoDAO implements SqlDAO, ThreadConnectionManagerAware {
 	protected ModelProvider modelProvider = null; // 模型访问程序
 	protected VOFactory voFactory = null; // 模型构造工厂
 	protected DataType STRINGTYPE = new StringDataType(DataType.VARCHAR);
-	protected DataType OBJECTTYPE = new ObjectDataType(DataType.JAVA_OBJECT);
+	protected DataType OBJECTTYPE = new IntegerDataType(DataType.JAVA_OBJECT);
 	protected ResultSetHandler IDROW_HANDLER = new SingleObjectHandler();
 	protected ResultSetHandler QUERY_HANDLER = new QueryResultSetHandler();
 	protected ThreadConnectionManager manager = null;
@@ -419,7 +464,7 @@ public class MysqlVoDAO implements SqlDAO, ThreadConnectionManagerAware {
 	 * @param datatype
 	 * @param statement
 	 */
-	protected void setParameter(ArrayList params, ArrayList datatype, PreparedStatement statement) {
+	protected void setParameter(ArrayList params, ArrayList datatype, PreparedStatement statement)throws SQLException {
 		for (int i = 1; i <= params.size(); i++) {
 			Object j = params.get(i - 1);
 			if (j == NULL_OBJECT) {
@@ -466,11 +511,11 @@ public class MysqlVoDAO implements SqlDAO, ThreadConnectionManagerAware {
 		throw new DAOException(e);
 	}
 
-	public VOFactory getVoFactory() {
+	public VOFactory getVOFactory() {
 		return voFactory;
 	}
 
-	public void setVoFactory(VOFactory voFactory) {
+	public void setVOFactory(VOFactory voFactory) {
 		this.voFactory = voFactory;
 	}
 
@@ -489,7 +534,7 @@ public class MysqlVoDAO implements SqlDAO, ThreadConnectionManagerAware {
 	 * @param datatypes
 	 * @param statement
 	 */
-	protected void setParameters(List paramters, List datatypes, PreparedStatement statement) {
+	protected void setParameters(List paramters, List datatypes, PreparedStatement statement)throws SQLException {
 		if (paramters != null) {
 			int psize = paramters.size();
 			int dtSize = -1;

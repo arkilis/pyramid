@@ -31,8 +31,8 @@ public class CachedModelProvider implements ModelProvider {
 	 * 通知有模型产生
 	 */
 	public void setModel(DataModel model) {
-		modelCacheMap.put(model.getModelName(), model);
-		if (modelProvider != null){
+		//modelCacheMap.put(model.getModelName(), model);
+		if (modelProvider != null ){
 			modelProvider.setModel(model);
 		}
 	}

@@ -164,7 +164,7 @@ public class Struts2ScriptableAction {
 	 * 默认的属性值
 	 */
 	static final String DEFAULT_ROOT_DIRECTORY = SpringFactory.DEFAULT_CONFIG_LOCATION_PREFIX;
-	static SpringFactory springFactory = SpringFactory.getDefault();
+	static SpringFactory springFactory = SpringFactory.getDefaultInstance();
 	static SimpleConfigManager configManager = new SimpleConfigManager("config", DEFAULT_ROOT_DIRECTORY);
 	static Class defaultScriptEngine = MVELScriptEngine.class;
 	static String scriptItemName = "script";
