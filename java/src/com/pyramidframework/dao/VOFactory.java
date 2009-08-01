@@ -9,7 +9,7 @@ public class VOFactory {
 	ModelProvider modelProvider = null;
 
 	/**
-	 * 将对象转换成VOSupport接口
+	 * 新生成一个对象，并将对象转换成VOSupport接口
 	 * 
 	 * @param valueObject
 	 * @return
@@ -21,7 +21,7 @@ public class VOFactory {
 	}
 
 	/**
-	 * 需要根据配置的模型文件设置那个类的实例//TODO:
+	 * 需要根据配置的模型文件设置那个类的实例
 	 * 
 	 * @param modelName
 	 * @return
@@ -31,7 +31,12 @@ public class VOFactory {
 		if (modelProvider == null) {
 			return new ValueObject(modelName);
 		}
-		DataModel model = modelProvider.getModelByName(modelName);
+		DataModel model = null;
+		try {
+			model = modelProvider.getModelByName(modelName);
+		} catch (Throwable e1) {
+			// do nothing
+		}
 		if (model == null || model.getType() == null) {
 			return new ValueObject(modelName);
 		} else {

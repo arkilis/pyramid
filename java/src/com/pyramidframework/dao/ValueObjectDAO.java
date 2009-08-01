@@ -2,6 +2,8 @@ package com.pyramidframework.dao;
 
 import java.util.Map;
 
+import com.pyramidframework.dao.model.ModelProvider;
+
 /**
  * 针对专门的值对象的DAO接口，所有的操作都是VO
  * 
@@ -23,7 +25,7 @@ public interface ValueObjectDAO {
 	 * @param dataObject
 	 * @return Object 执行修改后的数据，一般和dataObject是同一个对象
 	 */
-	public Object update(Object dataObject) throws DAOException;
+	public int update(Object dataObject) throws DAOException;
 
 	/**
 	 * 删除数据
@@ -61,4 +63,15 @@ public interface ValueObjectDAO {
 	 */
 	public PaginatedResult query(String modelName, Map queryValues, String orderBy, int pageSize, int page) throws DAOException;
 
+	/**
+	 * 获得内部的VOFactory实例
+	 * @return
+	 */
+	public VOFactory getVOFactory();
+	
+	/**
+	 * 得到一个内部实现相关的ModelProvider的实例
+	 * @return
+	 */
+	public ModelProvider getModelProvider();
 }

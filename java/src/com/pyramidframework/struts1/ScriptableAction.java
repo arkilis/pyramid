@@ -5,6 +5,9 @@ import java.util.Map;
 
 import org.springframework.beans.factory.BeanFactory;
 
+import com.pyramidframework.export.CSVExportor;
+import com.pyramidframework.export.DBDataExportHandler;
+import com.pyramidframework.export.DBExportorFactory;
 import com.pyramidframework.jdbc.ThreadConnectionManager;
 import com.pyramidframework.script.CompilableScriptEngine;
 import com.pyramidframework.script.MVELScriptEngine;
@@ -24,7 +27,7 @@ import com.pyramidframework.spring.SpringFactory;
  * @author Mikab Peng
  * 
  */
-public class ScriptableAction {
+public class ScriptableAction implements DBExportorFactory {
 
 	/**
 	 * 通过配置的脚本和脚本引擎去执行，并得到最终的结果
@@ -92,8 +95,15 @@ public class ScriptableAction {
 		try {
 			manager.openConnection();
 
-			return scriptEngine.runScript(script, scriptContext);
+			Object result = scriptEngine.runScript(script, scriptContext);
 
+			try {
+				manager.getCurrent().commit();
+			} catch (SQLException e) {
+				throw new RuntimeException(e);
+			}
+
+			return result;
 		} catch (RuntimeException e) {
 			try {
 				manager.getCurrent().rollback();
@@ -127,6 +137,13 @@ public class ScriptableAction {
 		scriptContext.put("formBean", ActionContext.getCurrent().getFormBean());
 
 		return scriptContext;
+	}
+
+	public DBDataExportHandler getExpotor(String fileName, String type) {
+		CSVExportor exportor = new CSVExportor();
+		exportor.setFileName(fileName + ".csv");
+		exportor.setResponse(ActionContext.getCurrent().getResponse());
+		return exportor;
 	}
 
 	/**

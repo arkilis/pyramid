@@ -50,6 +50,7 @@ class InheritedBeanFactory extends DefaultListableBeanFactory {
 		registerScope("request", new RequestScope());
 		registerScope("session", new SessionScope(false));
 		registerScope("globalSession", new SessionScope(true));
+		registerScope("process", new ProcessScope());
 
 		if (directParent == null) {
 			return;

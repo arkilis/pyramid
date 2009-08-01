@@ -1,19 +1,17 @@
 package com.pyramidframework.struts1;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
 import com.pyramidframework.dao.PaginatedResult;
-import com.pyramidframework.dao.VOFactory;
+import com.pyramidframework.dao.SqlTextUtil;
 import com.pyramidframework.dao.VOSupport;
-import com.pyramidframework.dao.ValueObjectDAO;
 
-public class TemplateService {
-	private ValueObjectDAO dao = null;
-	private VOFactory voFactory = null;
-	private ThreadLocal currentBean = new ThreadLocal();
-	private String modelName = null;
-
+public class TemplateService extends AbstractService {
 	public String addInput() {
-		
-		//确保结构存在
+
+		// 确保结构存在
 		ActionFormBean bean = getBean();
 		bean.getModel(modelName);
 		return ActionSupport.SUCCESS;
@@ -21,7 +19,7 @@ public class TemplateService {
 
 	public String editInput() {
 		ActionFormBean bean = getBean();
-		VOSupport support = voFactory.getVOSupport(bean.getModel(modelName));
+		VOSupport support = getVoFactory().getVOSupport(bean.getModel(modelName));
 		Object o = dao.retrieve(modelName, support.getValues());
 		bean.setModel(modelName, o);
 		return ActionSupport.SUCCESS;
@@ -30,6 +28,8 @@ public class TemplateService {
 	public String addSubmit() {
 		ActionFormBean bean = getBean();
 		dao.add(bean.getModel(modelName));
+
+		// /System.err.println(this.getClass().getName());
 
 		return ActionSupport.SUCCESS;
 	}
@@ -49,50 +49,51 @@ public class TemplateService {
 
 	public String query() {
 		ActionFormBean bean = getBean();
-		
-		VOSupport support = voFactory.getVOSupport(bean.getModel(modelName));
-		PaginatedResult result = dao.query(modelName, support.getValues(),null, bean.getPageSize(), bean.getCurrPage());
-		
+		Object object = bean.getModel(modelName);
+		if (object == null) {
+			object = getVoFactory().getValueObject(modelName);
+		}
+
+		VOSupport support = getVoFactory().getVOSupport(object);
+		PaginatedResult result = dao.query(modelName, support.getValues(), bean.getOrderBy(), bean.getPageSize(), bean.getCurrPage());
+
 		bean.setQueryResult(result.getPageDataList());
 		bean.setTotalCount(result.getTotalCount());
 		return ActionSupport.SUCCESS;
 	}
+	
+	protected String queryByName(String sqlName,String defaultOrderBy){
+		ActionFormBean bean = getBean();
+		String sql = getCacheAccessor().getCachedSql(sqlName);
 
-	public ValueObjectDAO getDao() {
-		return dao;
+		String orderBY = bean.getOrderBy();
+		if (orderBY == null) orderBY = defaultOrderBy;
+		sql += " order by " + orderBY;
+
+		PaginatedResult result = getDao().queryData(sql, null, null, bean.getPageSize(), bean.getCurrPage());
+
+		bean.setQueryResult(result.getPageDataList());
+		bean.setTotalCount(result.getTotalCount());
+
+		return ActionSupport.SUCCESS;
 	}
 
-	public void setDao(ValueObjectDAO dao) {
-		this.dao = dao;
-	}
+	public String queryByName() {
+		ActionFormBean bean = getBean();
+		
+		Map paramMap = bean.getParameterMap();
+		String name = (String) paramMap.get("queryName");
+		if (name == null) name = getModelName();
+		
+		String sql = getCacheAccessor().getCachedSql(name);
+		List dataTypes = new ArrayList();
+		List paramValues = new ArrayList();
+		sql = SqlTextUtil.parseSQL(sql, paramMap, dataTypes, paramValues);
 
-	public ActionFormBean getBean() {
-		return (ActionFormBean) currentBean.get();
-	}
+		PaginatedResult result = dao.queryData(sql, dataTypes, paramValues, bean.getPageSize(), bean.getCurrPage());
 
-	public void setBean(ActionFormBean currentBean) {
-		this.currentBean.set(currentBean);
+		bean.setQueryResult(result.getPageDataList());
+		bean.setTotalCount(result.getTotalCount());
+		return ActionSupport.SUCCESS;
 	}
-
-	public ActionFormBean registerCurrentBean(ActionFormBean currentBean) {
-		setBean(currentBean);
-		return currentBean;
-	}
-
-	public String getModelName() {
-		return modelName;
-	}
-
-	public void setModelName(String modelName) {
-		this.modelName = modelName;
-	}
-
-	public VOFactory getVoFactory() {
-		return voFactory;
-	}
-
-	public void setVoFactory(VOFactory voFactory) {
-		this.voFactory = voFactory;
-	}
-
 }

@@ -13,8 +13,8 @@ public class DataModel {
 	private String modelName = null;
 	private Class type = null;	//值对象的类类型
 	
-	protected int columnLength = 0;
-	protected int primaryLength = 0;
+	protected volatile int columnLength = 0;
+	protected volatile int primaryLength = 0;
 
 	public DataModel(String modelName) {
 		if (modelName == null) {
@@ -47,6 +47,7 @@ public class DataModel {
 			primaryLength += field.getName().length();
 		}
 		this.columnLength += field.getName().length();
+		field.setDataModel(this);
 	}
 
 	public void setModelName(String name) {
@@ -63,19 +64,6 @@ public class DataModel {
 		return primaryLength;
 	}
 
-	public int hashCode() {
-		return this.name2filed.hashCode() & this.modelName.hashCode();
-	}
-
-	public boolean equals(Object obj) {
-		if (obj != null) {
-			if (obj.getClass().equals(DataModel.class)) {
-				DataModel m = (DataModel) obj;
-				return this.modelName.equals(m.modelName) && this.name2filed.equals(m.modelName);
-			}
-		}
-		return false;
-	}
 	
 	/**
 	 * 设置值对象的类类型，默认为null时使用{@see ValueObject}类型

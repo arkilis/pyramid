@@ -17,4 +17,6 @@ public interface ActionSupport {
 	public String execute() throws Exception;
 
 	public static final String SUCCESS = "success";
+	public static final String ERROR = "error";
+	public static final String JSON_FORWARD = "json";
 }

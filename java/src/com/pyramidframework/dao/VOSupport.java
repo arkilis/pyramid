@@ -18,5 +18,19 @@ public interface VOSupport extends Serializable {
 	 * @return
 	 */
 	public Map getValues();
+	
+	/**
+	 * 直接通过名字访问属性值
+	 * @param name
+	 * @return
+	 */
+	public Object getProperty(String name);
+	
+	/**
+	 * 直接通过属性名设置值
+	 * @param name
+	 * @param value
+	 */
+	public void setProperty(String name, Object value);
 
 }

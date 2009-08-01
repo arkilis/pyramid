@@ -32,6 +32,9 @@ public class SpringFactory {
 	/** 配置文件默认存在的目录 */
 	public static final String DEFAULT_CONFIG_LOCATION_PREFIX = "/config";
 
+	/** 配置文件默认存在的目录 */
+	public static final String FACTORY_KEY = SpringFactory.class.getName() + ".FACTORY";
+
 	// 不想改动CI的代码，只有加个这个东西来获取的初始的访问路径
 	ThreadLocal currentPathStack = new ThreadLocal();
 
@@ -83,7 +86,8 @@ public class SpringFactory {
 	 * @return InheritedBeanFactory的实例
 	 */
 	public AutowireCapableBeanFactory getBeanFactory(String functionPath) {
-		return (InheritedBeanFactory) manager.getConfigData(functionPath);
+		AutowireCapableBeanFactory factory = (InheritedBeanFactory) manager.getConfigData(functionPath);
+		return factory;
 	}
 
 	/**
@@ -98,7 +102,14 @@ public class SpringFactory {
 	public AutowireCapableBeanFactory getBeanFactory(String functionPath, HttpServletRequest request) {
 		RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
 
-		return getBeanFactory(functionPath);
+		// 添加对ProcessScope的支持
+		ProcessScope.ProcessScopeSupport();
+
+		AutowireCapableBeanFactory factory = getBeanFactory(functionPath);
+
+		request.setAttribute(FACTORY_KEY, factory);
+
+		return factory;
 	}
 
 	/**
@@ -126,26 +137,26 @@ public class SpringFactory {
 							 * 构建访问路径
 							 */
 							protected ConfigDomainImpl lookupAndConstructDomain(String functionPath, String configType, ConfigDocumentParser parser, String targetPath) {
-								
+
 								ArrayList a = ((ArrayList) currentPathStack.get());
 								boolean init = false;
-								
+
 								if (a == null) {
 									a = new ArrayList();
 									currentPathStack.set(a);
 									init = true;
 								}
-								
-								try {	//只有真正构造一个新的节点数据时，才记住当前操作的路径
-									if (functionPath != null && functionPath.equals(targetPath)){
+
+								try { // 只有真正构造一个新的节点数据时，才记住当前操作的路径
+									if (functionPath != null && functionPath.equals(targetPath)) {
 										a.add(functionPath);
 									}
 									return super.lookupAndConstructDomain(functionPath, configType, parser, targetPath);
 								} finally {
-									if (functionPath != null && functionPath.equals(targetPath)){
+									if (functionPath != null && functionPath.equals(targetPath)) {
 										a.remove(a.size() - 1);
 									}
-									if (init){
+									if (init) {
 										currentPathStack.set(null);
 									}
 								}
@@ -176,10 +187,6 @@ public class SpringFactory {
 			return _providerInstance;
 		}
 	};
-
-	public static SpringFactory getDefault() {
-		return defaultInstance;
-	}
 
 	public static SpringFactory getDefaultInstance() {
 		return defaultInstance;
