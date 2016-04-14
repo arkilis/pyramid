@@ -1,0 +1,8 @@
+1.	在继承定义文档中，operates是根元素，他不包含任何的属性。Operates的直接子元素可以是operate元素，也可以是其他的元素，同时可以是节点、文本混合的。但是除去其直接的operate元素外，其他的元素不认为具体继承定义相关的意义，仅仅是作为可以检索的“数据节点”而已。
+2.	operate元素定义了一个对文档的操作。他有type和path两个属性，都是必须的，其中type现阶段是预设的add、modify、remove这三者之一。Path属性的值是一个xpath表达式，用来表示将要使用操作的对象，即如果是remove操作，表达式检索出的结果将被从文档中移除。需要注意，当operate的父节点是Operates时，xpath是对使用子（目标）文档来进行检索的上下文的；当然operate是父节点是reference节点时，是以reference的结果的临时文档作为其检索的上下文；当然operate的父节点是其他的任意数据节点时，则xpath表达式是以其父节点为根结点的临时文档作为检索的上下文的。Operate可以子节点可以是reference节点或者“数据节点”，但是仅以其第一个节点（Elment）为其操作的新值；Operate的子节点也是Operate节点时，子Operate节点将被按照“数据节点”来对待；如果子节点不存在任何的Element对象，则以其包含的文本创建一个Text对象作为操作的新值。如<sdi:operate sdi:type="add" sdi:path="/tr/td[5](5.md)">AA
+
+Unknown end tag for &lt;/operate&gt;
+
+表示在第5个td中加入AA这个文字。
+3.	reference节点定义一个对节点的引用，他有4个属性type、path、attribute、namespace，type、path是必须的，和operate节点意义类似，reference节点的type属性的值可以为new、parent、child、resource（path）这四种之一，其中resource（path）中path代表资源路径，path属性指定引用的节点的xpath的表达式，如果检索出多个，则取第一个节点，attribute尽在需要将检索出的值转换成Attribute对象时才在其中方式Attribute的名称，namespace是仅在attribute属性有用时，指定新建立的属性的所属命名空间，使用prefix：uri的方式来指定。Reference的子节点只能包含Operate节点，其他节点都予以忽略。
+4.	数据节点是指不是用来定义继承操作的其他的节点，如表示操作对象的纯数据的节点。在数据节点的子节点中，可以包含任意个数的数据节点、Operate节点或者reference节点作为其子节点，Operate和reference子节点在运行时将被解析。
